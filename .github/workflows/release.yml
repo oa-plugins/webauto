@@ -1,0 +1,176 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          # Windows builds
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            output: plugin-name.exe
+            archive: plugin-name-windows-amd64.zip
+
+          # macOS builds
+          - os: macos-latest
+            goos: darwin
+            goarch: amd64
+            output: plugin-name
+            archive: plugin-name-darwin-amd64.tar.gz
+
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+            output: plugin-name
+            archive: plugin-name-darwin-arm64.tar.gz
+
+          # Linux builds
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            output: plugin-name
+            archive: plugin-name-linux-amd64.tar.gz
+
+          - os: ubuntu-latest
+            goos: linux
+            goarch: arm64
+            output: plugin-name
+            archive: plugin-name-linux-arm64.tar.gz
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Get version from tag
+        id: get_version
+        shell: bash
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          go build -o ${{ matrix.output }} ./cmd/plugin-name
+
+      - name: Create archive (Windows)
+        if: matrix.goos == 'windows'
+        shell: pwsh
+        run: |
+          Compress-Archive -Path ${{ matrix.output }} -DestinationPath ${{ matrix.archive }}
+
+      - name: Create archive (Unix)
+        if: matrix.goos != 'windows'
+        run: |
+          tar -czf ${{ matrix.archive }} ${{ matrix.output }}
+
+      - name: Calculate SHA256
+        id: sha256
+        shell: bash
+        run: |
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            SHA256=$(powershell -Command "(Get-FileHash -Path '${{ matrix.archive }}' -Algorithm SHA256).Hash.ToLower()")
+          else
+            SHA256=$(shasum -a 256 ${{ matrix.archive }} | awk '{print $1}')
+          fi
+          echo "SHA256=$SHA256" >> $GITHUB_OUTPUT
+          echo "$SHA256  ${{ matrix.archive }}" >> SHA256SUMS-${{ matrix.goos }}-${{ matrix.goarch }}.txt
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.goos }}-${{ matrix.goarch }}
+          path: |
+            ${{ matrix.archive }}
+            SHA256SUMS-${{ matrix.goos }}-${{ matrix.goarch }}.txt
+
+  create-release:
+    needs: build-and-release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Merge SHA256 files
+        run: |
+          find artifacts -name "SHA256SUMS-*.txt" -exec cat {} \; > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Get version from tag
+        id: get_version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create Release Notes
+        run: |
+          cat > RELEASE_NOTES.md << 'EOF'
+          ## Plugin Name v${{ steps.get_version.outputs.VERSION }}
+
+          ### Installation
+
+          ```bash
+          # Using OA CLI (recommended)
+          oa plugin install plugin-name
+
+          # Manual installation
+          # 1. Download the archive for your platform
+          # 2. Extract to your plugin directory
+          # 3. Verify SHA256 checksum
+          ```
+
+          ### Platform Support
+
+          - ✅ Windows (amd64)
+          - ✅ macOS (amd64, arm64)
+          - ✅ Linux (amd64, arm64)
+
+          ### Platform-Specific Commands
+
+          Different commands are available depending on your operating system. Run `plugin-name --help` to see available commands on your platform.
+
+          ### Checksums
+
+          See `SHA256SUMS.txt` for all checksums.
+
+          ### Documentation
+
+          - [README](https://github.com/oa-plugins/plugin-name#readme)
+          - [Plugin Registry](https://github.com/oa-plugins/registry)
+          - [Issue Tracker](https://github.com/oa-plugins/plugin-name/issues)
+          EOF
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/*/*
+            SHA256SUMS.txt
+          body_path: RELEASE_NOTES.md
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

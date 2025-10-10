@@ -1,0 +1,71 @@
+# Plugin Manifest Template
+# This file will be used by the plugin to describe itself
+
+name: plugin-name  # TODO: Change to your plugin name (kebab-case)
+version: 0.1.0      # TODO: Update version (semver)
+display_name: Plugin Name  # TODO: Human-readable name
+description: TODO - Detailed description of what your plugin does
+short_description: TODO - Brief one-liner description
+
+author: your-github-username  # TODO: Your GitHub username
+license: MIT
+
+# Repository information
+homepage: https://github.com/oa-plugins/plugin-name
+repository: https://github.com/oa-plugins/plugin-name
+documentation: https://github.com/oa-plugins/plugin-name#readme
+issues: https://github.com/oa-plugins/plugin-name/issues
+
+# Platform support
+# NOTE: Different platforms may support different commands
+# Commands are registered in commands_*.go files
+platform_support:
+  windows:
+    supported: true
+    binary: plugin-name.exe
+    min_version: "10.0"
+  darwin:
+    supported: true
+    binary: plugin-name
+    min_version: "11.0"
+  linux:
+    supported: true
+    binary: plugin-name
+    min_version: ""
+
+# Example commands (will vary by platform)
+# TODO: Update based on your actual commands
+commands:
+  - name: example-command
+    description: Example command
+    platforms:
+      - windows
+      - darwin
+      - linux
+
+# Pricing configuration
+pricing:
+  tier: free
+  price: 0.0
+
+# Dependencies
+dependencies:
+  core_version: ">=10.0.0"
+  plugins: []
+  external_libs: []
+
+# Tags for searchability
+tags:
+  - example
+  - template
+
+# Resource limits
+resources:
+  max_memory: 64MB
+  max_cpu: 20%
+  max_execution_time: 30s
+
+# Offline support
+offline:
+  supported: true
+  requires_internet: false
