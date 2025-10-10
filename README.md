@@ -6,12 +6,14 @@
 
 ## 💨 30초 안에 시작하기
 
+**Requirements**: Go 1.21+
+
 ```bash
 # 1. 템플릿 클론
 git clone https://github.com/oa-plugins/plugin-template.git
 cd plugin-template
 
-# 2. 새 플러그인 생성 (Go 1.16+ 필요)
+# 2. 새 플러그인 생성
 go run ./cmd/create my-plugin
 
 # 3. 빌드 및 실행
@@ -25,7 +27,10 @@ go build -o my-plugin ./cmd/my-plugin
 # 모듈 경로와 작성자 지정
 go run ./cmd/create --module github.com/myorg/my-plugin --author myusername my-plugin
 
-# 인터랙티브 모드
+# 출력 디렉토리 지정
+go run ./cmd/create --output ~/projects/my-plugin my-plugin
+
+# 인터랙티브 모드 (프롬프트로 입력)
 go run ./cmd/create
 ```
 
@@ -35,19 +40,17 @@ go run ./cmd/create
 
 ### Option 1: Automated Plugin Generator (Recommended)
 
-**Requirements**: Go 1.16+
+**Requirements**: Go 1.21+
 
-Generate a new plugin with a single command:
+Clone the template and generate a new plugin:
 
 ```bash
-# Run from anywhere
-go run github.com/oa-plugins/plugin-template/cmd/create@latest my-plugin
-
-# Or clone and run locally
 git clone https://github.com/oa-plugins/plugin-template.git
 cd plugin-template
 go run ./cmd/create my-plugin
 ```
+
+This will create a new directory `my-plugin/` with all files customized and ready to use.
 
 **Advanced options:**
 
@@ -56,13 +59,12 @@ go run ./cmd/create my-plugin
 go run ./cmd/create \
   --module github.com/myorg/my-plugin \
   --author myusername \
+  --output ~/projects/my-plugin \
   my-plugin
 
-# Interactive mode (no arguments)
+# Interactive mode (prompts for input)
 go run ./cmd/create
 ```
-
-This will create a new directory `my-plugin/` with all files customized and ready to use.
 
 ---
 
