@@ -14,7 +14,7 @@ import (
 
 const (
 	templateName       = "plugin-name"
-	templateModule     = "github.com/oa-plugins/plugin-name"
+	templateModule     = "github.com/oa-plugins/plugin-template"
 	templateAuthor     = "your-github-username"
 	defaultModuleOrgPrefix = "github.com/oa-plugins/"
 )
