@@ -1,4 +1,4 @@
-module github.com/oa-plugins/plugin-name
+module github.com/oa-plugins/plugin-template
 
 go 1.21
 
