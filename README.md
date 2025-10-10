@@ -4,17 +4,73 @@
 
 이 템플릿을 사용하여 multi-platform을 지원하는 OA 플러그인을 빠르게 시작할 수 있습니다.
 
+## 💨 30초 안에 시작하기
+
+```bash
+# 1. 템플릿 클론
+git clone https://github.com/oa-plugins/plugin-template.git
+cd plugin-template
+
+# 2. 새 플러그인 생성 (Go 1.16+ 필요)
+go run ./cmd/create my-plugin
+
+# 3. 빌드 및 실행
+cd my-plugin
+go build -o my-plugin ./cmd/my-plugin
+./my-plugin --help
+```
+
+**고급 옵션:**
+```bash
+# 모듈 경로와 작성자 지정
+go run ./cmd/create --module github.com/myorg/my-plugin --author myusername my-plugin
+
+# 인터랙티브 모드
+go run ./cmd/create
+```
+
 ---
 
 ## 🚀 Quick Start
 
-### 1. Use This Template
+### Option 1: Automated Plugin Generator (Recommended)
+
+**Requirements**: Go 1.16+
+
+Generate a new plugin with a single command:
+
+```bash
+# Run from anywhere
+go run github.com/oa-plugins/plugin-template/cmd/create@latest my-plugin
+
+# Or clone and run locally
+git clone https://github.com/oa-plugins/plugin-template.git
+cd plugin-template
+go run ./cmd/create my-plugin
+```
+
+**Advanced options:**
+
+```bash
+# Specify all options
+go run ./cmd/create \
+  --module github.com/myorg/my-plugin \
+  --author myusername \
+  my-plugin
+
+# Interactive mode (no arguments)
+go run ./cmd/create
+```
+
+This will create a new directory `my-plugin/` with all files customized and ready to use.
+
+---
+
+### Option 2: Manual Setup (GitHub Template)
 
 Click the **"Use this template"** button at the top of this repository to create your own plugin repository.
 
-### 2. Customize Your Plugin
-
-See [TEMPLATE.md](./TEMPLATE.md) for detailed customization instructions.
+Then customize manually - see [TEMPLATE.md](./TEMPLATE.md) for detailed instructions.
 
 **Quick checklist**:
 - [ ] Rename `plugin-name` to your actual plugin name
@@ -23,6 +79,8 @@ See [TEMPLATE.md](./TEMPLATE.md) for detailed customization instructions.
 - [ ] Implement platform-specific commands in `commands_*.go`
 - [ ] Update README with your plugin documentation
 - [ ] Test build for all platforms
+
+---
 
 ### 3. Release
 
