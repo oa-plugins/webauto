@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	templateName       = "plugin-name"
-	templateModule     = "github.com/oa-plugins/plugin-template"
+	templateName       = "webauto"
+	templateModule     = "github.com/oa-plugins/webauto"
 	templateAuthor     = "your-github-username"
 	defaultModuleOrgPrefix = "github.com/oa-plugins/"
 )
@@ -139,14 +139,14 @@ func findTemplateDir() (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("could not find template directory. Please run this from the plugin-template repository or use 'go run ./cmd/create'")
+	return "", fmt.Errorf("could not find template directory. Please run this from the webauto repository or use 'go run ./cmd/create'")
 }
 
 func isTemplateDir(dir string) bool {
 	// Check if this looks like template directory
 	markers := []string{
 		"plugin.yaml",
-		"cmd/plugin-name/main.go",
+		"cmd/webauto/main.go",
 		"TEMPLATE.md",
 	}
 	for _, marker := range markers {

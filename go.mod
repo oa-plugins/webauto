@@ -1,4 +1,4 @@
-module github.com/oa-plugins/plugin-template
+module github.com/oa-plugins/webauto
 
 go 1.21
 

@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	pluginName    = "plugin-name" // TODO: Change this to your plugin name
+	pluginName    = "webauto" // TODO: Change this to your plugin name
 	pluginVersion = "0.1.0"       // TODO: Update version
 )
 
