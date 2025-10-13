@@ -1,71 +1,135 @@
-# Plugin Manifest Template
-# This file will be used by the plugin to describe itself
+# OA webauto Plugin Manifest
 
-name: plugin-name  # TODO: Change to your plugin name (kebab-case)
-version: 0.1.0      # TODO: Update version (semver)
-display_name: Plugin Name  # TODO: Human-readable name
-description: TODO - Detailed description of what your plugin does
-short_description: TODO - Brief one-liner description
+name: webauto
+version: 1.0.0
+display_name: Web Automation (Playwright Agents)
+description: Playwright Agents를 활용한 지능형 브라우저 자동화 플러그인으로, 한국 세무/회계 서비스(홈택스, 위하고 등)의 복잡한 UI 자동화를 지원합니다.
+short_description: Playwright Agents 기반 브라우저 자동화 플러그인
 
-author: your-github-username  # TODO: Your GitHub username
+author: oa-plugins
 license: MIT
 
 # Repository information
-homepage: https://github.com/oa-plugins/plugin-name
-repository: https://github.com/oa-plugins/plugin-name
-documentation: https://github.com/oa-plugins/plugin-name#readme
-issues: https://github.com/oa-plugins/plugin-name/issues
+homepage: https://github.com/oa-plugins/webauto
+repository: https://github.com/oa-plugins/webauto
+documentation: https://github.com/oa-plugins/webauto#readme
+issues: https://github.com/oa-plugins/webauto/issues
 
 # Platform support
-# NOTE: Different platforms may support different commands
-# Commands are registered in commands_*.go files
 platform_support:
   windows:
     supported: true
-    binary: plugin-name.exe
+    binary: webauto.exe
     min_version: "10.0"
   darwin:
     supported: true
-    binary: plugin-name
+    binary: webauto
     min_version: "11.0"
   linux:
     supported: true
-    binary: plugin-name
+    binary: webauto
     min_version: ""
 
-# Example commands (will vary by platform)
-# TODO: Update based on your actual commands
+# Commands
 commands:
-  - name: example-command
-    description: Example command
-    platforms:
-      - windows
-      - darwin
-      - linux
+  # Agent-Based Automation (고수준)
+  - name: workflow-plan
+    description: Planner Agent로 웹사이트 탐색 및 테스트 플랜 생성
+    platforms: [windows, darwin, linux]
 
-# Pricing configuration
+  - name: workflow-generate
+    description: Generator Agent로 Markdown 플랜을 실행 가능한 코드로 변환
+    platforms: [windows, darwin, linux]
+
+  - name: workflow-execute
+    description: 생성된 Playwright 스크립트 실행
+    platforms: [windows, darwin, linux]
+
+  - name: workflow-heal
+    description: Healer Agent로 실패한 스크립트 자동 수리
+    platforms: [windows, darwin, linux]
+
+  # Direct Browser Control (저수준)
+  - name: browser-launch
+    description: 브라우저 인스턴스 시작
+    platforms: [windows, darwin, linux]
+
+  - name: browser-close
+    description: 브라우저 인스턴스 종료
+    platforms: [windows, darwin, linux]
+
+  - name: page-navigate
+    description: 특정 URL로 페이지 이동
+    platforms: [windows, darwin, linux]
+
+  - name: element-click
+    description: 페이지 요소 클릭
+    platforms: [windows, darwin, linux]
+
+  - name: element-type
+    description: 요소에 텍스트 입력 (타이핑 시뮬레이션)
+    platforms: [windows, darwin, linux]
+
+  - name: form-fill
+    description: 폼 자동 입력 (여러 필드 동시 처리)
+    platforms: [windows, darwin, linux]
+
+  # Data Extraction
+  - name: page-screenshot
+    description: 현재 페이지 스크린샷 촬영
+    platforms: [windows, darwin, linux]
+
+  - name: page-pdf
+    description: 현재 페이지 PDF 저장
+    platforms: [windows, darwin, linux]
+
+  # Session Management
+  - name: session-list
+    description: 현재 활성 세션 목록 조회
+    platforms: [windows, darwin, linux]
+
+  - name: session-close
+    description: 특정 세션 종료
+    platforms: [windows, darwin, linux]
+
+# Pricing
 pricing:
   tier: free
   price: 0.0
 
 # Dependencies
 dependencies:
-  core_version: ">=10.0.0"
+  core_version: ">=1.0.0"
   plugins: []
-  external_libs: []
+  external_libs:
+    - name: Node.js
+      version: ">=18.0.0"
+      required: true
+    - name: Playwright
+      version: ">=1.56.0"
+      required: true
+    - name: "@playwright/agents"
+      version: ">=1.56.0"
+      required: true
 
-# Tags for searchability
+# Tags
 tags:
-  - example
-  - template
+  - browser-automation
+  - playwright
+  - web-scraping
+  - rpa
+  - korean-services
+  - hometax
+  - wehago
+  - anti-bot
 
 # Resource limits
 resources:
-  max_memory: 64MB
-  max_cpu: 20%
-  max_execution_time: 30s
+  max_memory: 1GB
+  max_cpu: 50%
+  max_execution_time: 60s
 
 # Offline support
 offline:
-  supported: true
-  requires_internet: false
+  supported: false
+  requires_internet: true

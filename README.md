@@ -1,228 +1,191 @@
-# OA Plugin Template
+# OA webauto Plugin
 
-> **GitHub Template Repository for creating [pyhub-office-automation](https://github.com/pyhub-kr/pyhub-office-automation) plugins**
+Playwright Agents를 활용한 지능형 브라우저 자동화 플러그인으로, 한국 세무/회계 서비스(홈택스, 위하고 등)의 복잡한 UI 자동화를 지원합니다.
 
-이 템플릿을 사용하여 multi-platform을 지원하는 OA 플러그인을 빠르게 시작할 수 있습니다.
+## 🎯 핵심 기능
 
-## 💨 30초 안에 시작하기
+### Agent-Based Automation (고수준 자동화)
+- **workflow-plan**: Planner Agent로 웹사이트 탐색 및 테스트 플랜 생성
+- **workflow-generate**: Generator Agent로 플랜을 Playwright 코드로 변환
+- **workflow-execute**: 생성된 자동화 스크립트 실행
+- **workflow-heal**: Healer Agent로 실패한 스크립트 자동 수리
 
-**Requirements**: Go 1.21+
+### Direct Browser Control (저수준 제어)
+- **browser-launch**: 브라우저 시작 및 세션 생성
+- **browser-close**: 브라우저 종료
+- **page-navigate**: URL 이동
+- **element-click**: 요소 클릭
+- **element-type**: 텍스트 입력
+- **form-fill**: 폼 자동 입력
 
-```bash
-# 1. 템플릿 클론
-git clone https://github.com/oa-plugins/plugin-template.git
-cd plugin-template
+### Data Extraction
+- **page-screenshot**: 스크린샷 촬영
+- **page-pdf**: PDF 저장
 
-# 2. 새 플러그인 생성
-go run ./cmd/create my-plugin
+### Session Management
+- **session-list**: 활성 세션 목록
+- **session-close**: 세션 종료
 
-# 3. 빌드 및 실행
-cd my-plugin
-go build -o my-plugin ./cmd/my-plugin
-./my-plugin --help
-```
+**총 14개 명령어**
 
-**고급 옵션:**
-```bash
-# 모듈 경로와 작성자 지정
-go run ./cmd/create --module github.com/myorg/my-plugin --author myusername my-plugin
+## 🚀 빠른 시작
 
-# 출력 디렉토리 지정
-go run ./cmd/create --output ~/projects/my-plugin my-plugin
+### 사전 요구사항
 
-# 인터랙티브 모드 (프롬프트로 입력)
-go run ./cmd/create
-```
+1. **Go 1.22+**
+2. **Node.js 18+** (Playwright 실행용)
+3. **OA CLI** (플러그인 호스트)
 
----
-
-## 🚀 Quick Start
-
-### Option 1: Automated Plugin Generator (Recommended)
-
-**Requirements**: Go 1.21+
-
-Clone the template and generate a new plugin:
+### 설치
 
 ```bash
-git clone https://github.com/oa-plugins/plugin-template.git
-cd plugin-template
-go run ./cmd/create my-plugin
+# 1. Playwright 및 브라우저 설치
+npm install playwright @playwright/agents
+npx playwright install chromium firefox webkit
+
+# 2. webauto 플러그인 빌드
+go build -o webauto cmd/webauto/main.go
+
+# 3. OA CLI에 등록
+oa plugin install ./webauto
 ```
 
-This will create a new directory `my-plugin/` with all files customized and ready to use.
+## 📖 사용 예시
 
-**Advanced options:**
+### Agent 기반 자동화 (권장)
 
 ```bash
-# Specify all options
-go run ./cmd/create \
-  --module github.com/myorg/my-plugin \
-  --author myusername \
-  --output ~/projects/my-plugin \
-  my-plugin
+# 1. 시나리오로부터 플랜 생성
+oa webauto workflow-plan \
+  --page-url "https://hometax.go.kr" \
+  --scenario-text "로그인 → 세금계산서 조회 → CSV 다운로드" \
+  --output-path hometax_plan.md
 
-# Interactive mode (prompts for input)
-go run ./cmd/create
+# 2. 플랜을 실행 가능한 코드로 변환
+oa webauto workflow-generate \
+  --plan-file hometax_plan.md \
+  --output-path hometax_automation.ts
+
+# 3. 자동화 실행
+oa webauto workflow-execute \
+  --script-file hometax_automation.ts \
+  --headless false
+
+# 4. 실패 시 자동 수리
+oa webauto workflow-heal \
+  --script-file hometax_automation.ts \
+  --max-attempts 5
 ```
 
----
-
-### Option 2: Manual Setup (GitHub Template)
-
-Click the **"Use this template"** button at the top of this repository to create your own plugin repository.
-
-Then customize manually - see [TEMPLATE.md](./TEMPLATE.md) for detailed instructions.
-
-**Quick checklist**:
-- [ ] Rename `plugin-name` to your actual plugin name
-- [ ] Update `go.mod` module path
-- [ ] Customize `plugin.yaml`
-- [ ] Implement platform-specific commands in `commands_*.go`
-- [ ] Update README with your plugin documentation
-- [ ] Test build for all platforms
-
----
-
-### 3. Release
+### Direct Control (수동 제어)
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+# 1. 브라우저 시작
+oa webauto browser-launch --headless false
+# 출력: {"success":true,"data":{"session_id":"ses_abc123",...}}
+
+# 2. 페이지 이동
+oa webauto page-navigate \
+  --page-url "https://hometax.go.kr" \
+  --session-id ses_abc123
+
+# 3. 폼 입력
+oa webauto form-fill \
+  --form-data '{"username":"user1","password":"pass123"}' \
+  --session-id ses_abc123 \
+  --submit true
+
+# 4. 스크린샷 촬영
+oa webauto page-screenshot \
+  --image-path hometax_result.png \
+  --session-id ses_abc123
+
+# 5. 브라우저 종료
+oa webauto browser-close --session-id ses_abc123
 ```
 
-GitHub Actions will automatically build binaries for all platforms and create a release.
+## 🛡️ Anti-Bot 전략
 
----
+webauto는 다음 기술로 봇 탐지를 우회합니다:
 
-## 🏗️ Architecture
+1. **Playwright Stealth Mode**: WebDriver 플래그 자동 숨김
+2. **Fingerprint 우회**: User-Agent 로테이션
+3. **행동 패턴 랜덤화**: 타이핑 지연, 마우스 이동 Jitter
+4. **Rate Limiting**: 요청 간격 제어
 
-### Multi-Platform Support
-
-This template implements **platform-specific command filtering**:
-
-```
-Your Plugin
-├── Windows → Shows Windows-specific commands
-├── macOS   → Shows macOS-specific commands
-└── Linux   → Shows Linux-specific commands
-```
-
-**How it works**:
-- `main.go` - Common entry point
-- `commands_windows.go` - Windows-only commands (`//go:build windows`)
-- `commands_darwin.go` - macOS-only commands (`//go:build darwin`)
-- `commands_linux.go` - Linux-only commands (`//go:build linux`)
-
-### Example
+### 환경 변수 설정
 
 ```bash
-# On Windows
-plugin-name --help
-  windows-example    # ✅ Visible
-
-# On macOS
-plugin-name --help
-  macos-example      # ✅ Visible
-
-# On Linux
-plugin-name --help
-  linux-example      # ✅ Visible
+export ENABLE_STEALTH=true
+export ENABLE_FINGERPRINT=true
+export ENABLE_BEHAVIOR_RANDOM=true
+export TYPING_DELAY_MS=30
+export MOUSE_MOVE_JITTER_PX=10
 ```
 
----
+## 🌍 플랫폼 지원
 
-## 📦 Platform Support
+- ✅ **Windows** 10/11
+- ✅ **macOS** 11+ (Intel/Apple Silicon)
+- ✅ **Linux** Ubuntu 20.04+
 
-This template supports building for:
-- ✅ Windows (amd64)
-- ✅ macOS (amd64, arm64)
-- ✅ Linux (amd64, arm64)
+## 📊 성능 목표
 
-Different platforms can expose different commands. Commands are automatically filtered based on build tags.
+| 명령어 카테고리 | 목표 시간 |
+|----------------|----------|
+| Agent 기반 | 5-30초 |
+| 브라우저 제어 | < 500ms |
+| 페이지 제어 | < 1000ms |
+| 요소 조작 | < 300ms |
+| 데이터 추출 | < 1000ms |
+| 세션 관리 | < 100ms |
 
----
-
-## 🛠️ Development
-
-### Prerequisites
-
-- Go 1.21+
-- Git
-
-### Build Locally
+## 🧪 테스트
 
 ```bash
-# Build for current platform
-go build -o plugin-name ./cmd/plugin-name
+# 단위 테스트
+go test ./...
 
-# Build for specific platform
-GOOS=windows GOARCH=amd64 go build -o plugin-name.exe ./cmd/plugin-name
-GOOS=darwin GOARCH=arm64 go build -o plugin-name ./cmd/plugin-name
-GOOS=linux GOARCH=amd64 go build -o plugin-name ./cmd/plugin-name
+# 커버리지
+go test -coverprofile=coverage.out ./...
+go tool cover -html=coverage.out
 ```
 
-### Test
+## 📚 문서
 
-```bash
-# Run your plugin
-./plugin-name --help
-./plugin-name --version
+- [아키텍처 설계](ARCHITECTURE.md)
+- [아이디어 제안서](https://github.com/oa-plugins/plugin-designer/blob/main/ideas/webauto-idea.md)
+- [API 문서](https://github.com/oa-plugins/plugin-designer/blob/main/designs/webauto-architecture.md)
 
-# Test platform-specific commands
-./plugin-name windows-example  # Only on Windows
-./plugin-name macos-example    # Only on macOS
-./plugin-name linux-example    # Only on Linux
-```
+## ⚖️ 법적 고지
 
----
+**개인 정보 자동화 전용**: 이 플러그인은 본인의 세금/회계 정보를 자동화하기 위한 목적으로만 사용하세요.
 
-## 📝 Submitting to Registry
+**금지 사항**:
+- ❌ 타인의 계정 무단 접근
+- ❌ 서비스 약관 위반
+- ❌ 상업적 스크래핑
+- ❌ 과도한 요청 (Rate Limit 초과)
 
-After releasing your plugin:
+**책임**: 사용자는 이 플러그인 사용으로 인한 법적 책임을 스스로 부담합니다.
 
-1. **Create manifest** in [oa-plugins/registry](https://github.com/oa-plugins/registry)
+## 🤝 기여
 
-   ```yaml
-   name: your-plugin
-   version: 1.0.0
-   platforms:
-     windows-amd64:
-       uri: https://github.com/oa-plugins/your-plugin/releases/download/v1.0.0/your-plugin-windows-amd64.zip
-       sha256: "..."
-       bin: your-plugin.exe
-     darwin-amd64:
-       uri: https://github.com/oa-plugins/your-plugin/releases/download/v1.0.0/your-plugin-darwin-amd64.tar.gz
-       sha256: "..."
-       bin: your-plugin
-     # ... other platforms
-   ```
+Pull Request 환영합니다! 기여 전 [CONTRIBUTING.md](CONTRIBUTING.md)를 확인하세요.
 
-2. **Submit PR** to registry repository
+## 📄 라이선스
 
-3. **Get SHA256 checksums** from your GitHub Release (see `SHA256SUMS.txt`)
+MIT License
+
+## 🔗 관련 링크
+
+- [OA CLI](https://github.com/oa-plugins/oa)
+- [Plugin Designer](https://github.com/oa-plugins/plugin-designer)
+- [Playwright Docs](https://playwright.dev/)
+- [Playwright Agents](https://playwright.dev/docs/test-agents)
 
 ---
 
-## 📚 Resources
-
-- [Plugin Development Guide](https://github.com/oa-plugins/registry/blob/main/docs/plugin-development-guide.md)
-- [Multi-Platform Support](https://github.com/oa-plugins/registry/blob/main/docs/multi-platform-support.md)
-- [Registry](https://github.com/oa-plugins/registry)
-- [Example Plugin: kakaotalk-core](https://github.com/oa-plugins/kakaotalk-core)
-
----
-
-## 🤝 Contributing
-
-Found an issue with this template? Please [open an issue](https://github.com/oa-plugins/plugin-template/issues).
-
----
-
-## 📝 License
-
-MIT License - see [LICENSE](LICENSE) for details.
-
----
-
-**© 2024 pyhub-office-automation** | [GitHub](https://github.com/oa-plugins)
+**버전**: 1.0.0
+**작성**: 2025-10-13
+**문의**: [GitHub Issues](https://github.com/oa-plugins/webauto/issues)
