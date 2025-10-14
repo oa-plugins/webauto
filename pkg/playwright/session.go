@@ -432,6 +432,57 @@ func (sm *SessionManager) List() []*Session {
 	return sessions
 }
 
+// ListAll returns all sessions (memory + file system)
+func (sm *SessionManager) ListAll() []*Session {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+
+	// Start with sessions in memory
+	sessionMap := make(map[string]*Session)
+	for id, session := range sm.sessions {
+		sessionMap[id] = session
+	}
+
+	// Scan session directory for session files
+	dirPath := sessionDir()
+	entries, err := os.ReadDir(dirPath)
+	if err != nil {
+		// Directory doesn't exist or can't be read, return memory sessions only
+		sessions := make([]*Session, 0, len(sessionMap))
+		for _, session := range sessionMap {
+			sessions = append(sessions, session)
+		}
+		return sessions
+	}
+
+	// Load sessions from files (skip if already in memory)
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
+			continue
+		}
+
+		sessionID := entry.Name()[:len(entry.Name())-5] // Remove .json extension
+		if _, exists := sessionMap[sessionID]; exists {
+			continue // Already in memory
+		}
+
+		// Load session from file
+		session, err := loadSession(sessionID)
+		if err != nil {
+			continue // Skip invalid sessions
+		}
+		sessionMap[sessionID] = session
+	}
+
+	// Convert map to slice
+	sessions := make([]*Session, 0, len(sessionMap))
+	for _, session := range sessionMap {
+		sessions = append(sessions, session)
+	}
+
+	return sessions
+}
+
 // CleanupExpired removes expired sessions based on timeout
 func (sm *SessionManager) CleanupExpired() int {
 	sm.mu.Lock()

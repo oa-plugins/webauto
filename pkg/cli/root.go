@@ -20,6 +20,7 @@ func init() {
 	rootCmd.AddCommand(elementClickCmd)
 	rootCmd.AddCommand(elementTypeCmd)
 	rootCmd.AddCommand(pageScreenshotCmd)
+	rootCmd.AddCommand(sessionListCmd)
 
 	// Global flags
 	rootCmd.PersistentFlags().Bool("verbose", false, "Enable verbose logging")
