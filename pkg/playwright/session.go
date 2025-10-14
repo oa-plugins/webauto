@@ -192,6 +192,18 @@ func (sm *SessionManager) Create(ctx context.Context, browserType string, headle
 											title: await page.title()
 										}
 									}) + '\n');
+								} else if (cmd.command === 'click') {
+									const element = page.locator(cmd.selector);
+									await element.click({
+										timeout: cmd.timeout || 30000
+									});
+									socket.write(JSON.stringify({
+										success: true,
+										data: {
+											selector: cmd.selector,
+											clicked: true
+										}
+									}) + '\n');
 								} else if (cmd.command === 'ping') {
 									socket.write(JSON.stringify({
 										success: true,
