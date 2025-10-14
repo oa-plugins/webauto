@@ -1,0 +1,23 @@
+{
+  "name": "oa-webauto",
+  "version": "1.0.0",
+  "description": "Playwright Agents-based intelligent browser automation plugin for OA CLI",
+  "main": "index.js",
+  "scripts": {
+    "setup": "playwright install chromium",
+    "test": "playwright test"
+  },
+  "keywords": [
+    "playwright",
+    "automation",
+    "browser",
+    "hometax",
+    "wehago"
+  ],
+  "author": "OA Plugins Team",
+  "license": "MIT",
+  "dependencies": {
+    "playwright": "^1.48.0",
+    "@playwright/test": "^1.48.0"
+  }
+}

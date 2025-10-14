@@ -6,6 +6,7 @@
 *.dylib
 plugin-name
 plugin-name.exe
+webauto
 
 # Test binary
 *.test
@@ -18,10 +19,12 @@ go.work
 
 # Dependencies
 vendor/
+node_modules/
 
 # IDE
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 *~
