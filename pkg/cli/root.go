@@ -16,6 +16,7 @@ func init() {
 	// Register commands
 	rootCmd.AddCommand(browserLaunchCmd)
 	rootCmd.AddCommand(browserCloseCmd)
+	rootCmd.AddCommand(pageNavigateCmd)
 
 	// Global flags
 	rootCmd.PersistentFlags().Bool("verbose", false, "Enable verbose logging")

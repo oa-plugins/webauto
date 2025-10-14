@@ -23,6 +23,7 @@ const (
 	ErrBrowserConnectionLost = "BROWSER_CONNECTION_LOST"
 	ErrPageLoadFailed        = "PAGE_LOAD_FAILED"
 	ErrPageTimeout           = "PAGE_TIMEOUT"
+	ErrPageNavigationFailed  = "PAGE_NAVIGATION_FAILED"
 )
 
 // Element-related error codes

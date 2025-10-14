@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -23,10 +24,11 @@ type Session struct {
 	Headless    bool        `json:"headless"`
 	CreatedAt   time.Time   `json:"created_at"`
 	LastUsedAt  time.Time   `json:"last_used_at"`
-	PID         int         `json:"pid"`          // Process ID for reconnection
-	Browser     interface{} `json:"-"`            // WebSocket endpoint (string) for browser reconnection
-	Page        interface{} `json:"-"`            // Page reference (for future use)
-	Process     interface{} `json:"-"`            // Node.js process reference (for cleanup)
+	PID         int         `json:"pid"`    // Process ID for reconnection
+	Port        int         `json:"port"`   // TCP port for IPC
+	Browser     interface{} `json:"-"`      // WebSocket endpoint (string) for browser reconnection
+	Page        interface{} `json:"-"`      // Page reference (for future use)
+	Process     interface{} `json:"-"`      // Node.js process reference (for cleanup)
 }
 
 // sessionDir returns the directory path for session files
@@ -131,13 +133,15 @@ func (sm *SessionManager) Create(ctx context.Context, browserType string, headle
 	// Generate unique session ID
 	sessionID := "ses_" + uuid.New().String()[:8]
 
-	// Build Playwright launch script that keeps browser alive
+	// Build Playwright launch script with TCP server for IPC
 	script := fmt.Sprintf(`
 		const { chromium, firefox, webkit } = require('playwright');
+		const net = require('net');
 
 		(async () => {
 			try {
 				let browser;
+				let page;
 				const browserType = '%s';
 				const headless = %t;
 
@@ -153,26 +157,78 @@ func (sm *SessionManager) Create(ctx context.Context, browserType string, headle
 				}
 
 				// Create a new page
-				const page = await browser.newPage();
+				page = await browser.newPage();
 
 				// Get browser info
 				const version = await browser.version();
 				const isConnected = browser.isConnected();
 
-				// Output session info to stdout (will be read by Go)
-				console.log(JSON.stringify({
-					success: true,
-					data: {
-						browserType: browserType,
-						headless: headless,
-						version: version,
-						isConnected: isConnected
-					}
-				}));
+				// Start TCP server for IPC
+				const server = net.createServer((socket) => {
+					let buffer = '';
 
-				// Keep process alive to maintain browser session
-				// This process will be killed when the session is closed
-				process.stdin.resume();
+					socket.on('data', async (data) => {
+						buffer += data.toString();
+
+						// Process complete JSON commands (newline-delimited)
+						const lines = buffer.split('\n');
+						buffer = lines.pop(); // Keep incomplete line in buffer
+
+						for (const line of lines) {
+							if (!line.trim()) continue;
+
+							try {
+								const cmd = JSON.parse(line);
+
+								if (cmd.command === 'navigate') {
+									await page.goto(cmd.url, {
+										waitUntil: cmd.waitUntil || 'load',
+										timeout: cmd.timeout || 30000
+									});
+									socket.write(JSON.stringify({
+										success: true,
+										data: {
+											url: page.url(),
+											title: await page.title()
+										}
+									}) + '\n');
+								} else if (cmd.command === 'ping') {
+									socket.write(JSON.stringify({
+										success: true,
+										data: { status: 'alive' }
+									}) + '\n');
+								} else {
+									socket.write(JSON.stringify({
+										success: false,
+										error: 'Unknown command: ' + cmd.command
+									}) + '\n');
+								}
+							} catch (error) {
+								socket.write(JSON.stringify({
+									success: false,
+									error: error.message
+								}) + '\n');
+							}
+						}
+					});
+				});
+
+				// Listen on random available port
+				server.listen(0, '127.0.0.1', () => {
+					const port = server.address().port;
+
+					// Output session info to stdout (will be read by Go)
+					console.log(JSON.stringify({
+						success: true,
+						data: {
+							browserType: browserType,
+							headless: headless,
+							version: version,
+							isConnected: isConnected,
+							port: port
+						}
+					}));
+				});
 
 			} catch (error) {
 				console.log(JSON.stringify({
@@ -224,11 +280,17 @@ func (sm *SessionManager) Create(ctx context.Context, browserType string, headle
 	// Extract browser info from response
 	browserVersion, _ := response.Data["version"].(string)
 	isConnected, _ := response.Data["isConnected"].(bool)
+	port, _ := response.Data["port"].(float64) // JSON numbers are float64
 
 	// Log successful launch (for debugging)
 	if !isConnected {
 		cmd.Process.Kill()
 		return nil, fmt.Errorf("browser launched but is not connected")
+	}
+
+	if port == 0 {
+		cmd.Process.Kill()
+		return nil, fmt.Errorf("failed to get TCP port from browser launch response")
 	}
 
 	// Create session with browser info
@@ -239,6 +301,7 @@ func (sm *SessionManager) Create(ctx context.Context, browserType string, headle
 		CreatedAt:   time.Now(),
 		LastUsedAt:  time.Now(),
 		PID:         cmd.Process.Pid, // Store PID for process reconnection
+		Port:        int(port),        // Store TCP port for IPC
 		Browser:     browserVersion,  // Store browser version for info
 		Process:     cmd,              // Store process for cleanup
 	}
@@ -363,4 +426,65 @@ func (sm *SessionManager) Count() int {
 	defer sm.mu.RUnlock()
 
 	return len(sm.sessions)
+}
+
+// SendCommand sends a command to a browser session via TCP
+func (sm *SessionManager) SendCommand(ctx context.Context, sessionID string, command map[string]interface{}) (*ipc.NodeResponse, error) {
+	// Try to load session from memory or file
+	session, ok := sm.sessions[sessionID]
+	if !ok {
+		// Load from file
+		loadedSession, err := loadSession(sessionID)
+		if err != nil {
+			return nil, err
+		}
+		session = loadedSession
+	}
+
+	// Connect to session's TCP server
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", session.Port), 5*time.Second)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to session: %w", err)
+	}
+	defer conn.Close()
+
+	// Set write deadline
+	conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+
+	// Encode and send command
+	commandJSON, err := json.Marshal(command)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal command: %w", err)
+	}
+
+	if _, err := conn.Write(append(commandJSON, '\n')); err != nil {
+		return nil, fmt.Errorf("failed to send command: %w", err)
+	}
+
+	// Set read deadline
+	conn.SetReadDeadline(time.Now().Add(30 * time.Second))
+
+	// Read response
+	scanner := bufio.NewScanner(conn)
+	if !scanner.Scan() {
+		if err := scanner.Err(); err != nil {
+			return nil, fmt.Errorf("failed to read response: %w", err)
+		}
+		return nil, fmt.Errorf("no response received")
+	}
+
+	// Parse response
+	var resp ipc.NodeResponse
+	if err := json.Unmarshal(scanner.Bytes(), &resp); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	// Update last used time
+	session.LastUsedAt = time.Now()
+	if err := session.saveSession(); err != nil {
+		// Log error but don't fail the operation
+		fmt.Printf("Warning: failed to update session timestamp: %v\n", err)
+	}
+
+	return &resp, nil
 }
