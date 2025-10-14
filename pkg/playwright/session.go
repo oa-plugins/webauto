@@ -204,6 +204,21 @@ func (sm *SessionManager) Create(ctx context.Context, browserType string, headle
 											clicked: true
 										}
 									}) + '\n');
+								} else if (cmd.command === 'screenshot') {
+									const screenshot = await page.screenshot({
+										type: cmd.type || 'png',
+										fullPage: cmd.fullPage || false,
+										timeout: cmd.timeout || 30000
+									});
+									const base64 = screenshot.toString('base64');
+									socket.write(JSON.stringify({
+										success: true,
+										data: {
+											screenshot: base64,
+											type: cmd.type || 'png',
+											fullPage: cmd.fullPage || false
+										}
+									}) + '\n');
 								} else if (cmd.command === 'ping') {
 									socket.write(JSON.stringify({
 										success: true,
