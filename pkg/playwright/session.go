@@ -219,6 +219,19 @@ func (sm *SessionManager) Create(ctx context.Context, browserType string, headle
 											fullPage: cmd.fullPage || false
 										}
 									}) + '\n');
+								} else if (cmd.command === 'type') {
+									const element = page.locator(cmd.selector);
+									await element.fill(cmd.text, {
+										timeout: cmd.timeout || 30000
+									});
+									socket.write(JSON.stringify({
+										success: true,
+										data: {
+											selector: cmd.selector,
+											text: cmd.text,
+											typed: true
+										}
+									}) + '\n');
 								} else if (cmd.command === 'ping') {
 									socket.write(JSON.stringify({
 										success: true,

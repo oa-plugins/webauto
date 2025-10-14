@@ -18,6 +18,7 @@ func init() {
 	rootCmd.AddCommand(browserCloseCmd)
 	rootCmd.AddCommand(pageNavigateCmd)
 	rootCmd.AddCommand(elementClickCmd)
+	rootCmd.AddCommand(elementTypeCmd)
 	rootCmd.AddCommand(pageScreenshotCmd)
 
 	// Global flags
