@@ -5,7 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -16,14 +18,89 @@ import (
 
 // Session represents a browser session
 type Session struct {
-	ID          string
-	BrowserType string
-	Headless    bool
-	CreatedAt   time.Time
-	LastUsedAt  time.Time
-	Browser     interface{} // WebSocket endpoint (string) for browser reconnection
-	Page        interface{} // Page reference (for future use)
-	Process     interface{} // Node.js process reference (for cleanup)
+	ID          string      `json:"id"`
+	BrowserType string      `json:"browser_type"`
+	Headless    bool        `json:"headless"`
+	CreatedAt   time.Time   `json:"created_at"`
+	LastUsedAt  time.Time   `json:"last_used_at"`
+	PID         int         `json:"pid"`          // Process ID for reconnection
+	Browser     interface{} `json:"-"`            // WebSocket endpoint (string) for browser reconnection
+	Page        interface{} `json:"-"`            // Page reference (for future use)
+	Process     interface{} `json:"-"`            // Node.js process reference (for cleanup)
+}
+
+// sessionDir returns the directory path for session files
+func sessionDir() string {
+	homeDir, _ := os.UserHomeDir()
+	return filepath.Join(homeDir, ".cache", "oa", "webauto", "sessions")
+}
+
+// sessionFile returns the file path for a specific session
+func sessionFile(sessionID string) string {
+	return filepath.Join(sessionDir(), sessionID+".json")
+}
+
+// saveSession saves session metadata to a file
+func (s *Session) saveSession() error {
+	// Create sessions directory if it doesn't exist
+	if err := os.MkdirAll(sessionDir(), 0755); err != nil {
+		return fmt.Errorf("failed to create sessions directory: %w", err)
+	}
+
+	// Marshal session to JSON
+	data, err := json.MarshalIndent(s, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal session: %w", err)
+	}
+
+	// Write to file
+	filePath := sessionFile(s.ID)
+	if err := os.WriteFile(filePath, data, 0644); err != nil {
+		return fmt.Errorf("failed to write session file: %w", err)
+	}
+
+	return nil
+}
+
+// loadSession loads session metadata from a file and reattaches to process
+func loadSession(sessionID string) (*Session, error) {
+	filePath := sessionFile(sessionID)
+
+	// Read session file
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("session not found: %s", sessionID)
+		}
+		return nil, fmt.Errorf("failed to read session file: %w", err)
+	}
+
+	// Unmarshal session
+	var session Session
+	if err := json.Unmarshal(data, &session); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal session: %w", err)
+	}
+
+	// Find and attach to existing process
+	// Note: On macOS/Linux, os.FindProcess always succeeds
+	// Process verification happens when we try to kill it
+	process, err := os.FindProcess(session.PID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find process %d: %w", session.PID, err)
+	}
+
+	session.Process = process
+
+	return &session, nil
+}
+
+// deleteSession removes the session file
+func deleteSession(sessionID string) error {
+	filePath := sessionFile(sessionID)
+	if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to delete session file: %w", err)
+	}
+	return nil
 }
 
 // SessionManager manages browser sessions
@@ -161,11 +238,18 @@ func (sm *SessionManager) Create(ctx context.Context, browserType string, headle
 		Headless:    headless,
 		CreatedAt:   time.Now(),
 		LastUsedAt:  time.Now(),
-		Browser:     browserVersion, // Store browser version for info
-		Process:     cmd,             // Store process for cleanup
+		PID:         cmd.Process.Pid, // Store PID for process reconnection
+		Browser:     browserVersion,  // Store browser version for info
+		Process:     cmd,              // Store process for cleanup
 	}
 
-	// Store session
+	// Save session to file
+	if err := session.saveSession(); err != nil {
+		cmd.Process.Kill()
+		return nil, fmt.Errorf("failed to save session: %w", err)
+	}
+
+	// Store session in memory
 	sm.sessions[sessionID] = session
 
 	return session, nil
@@ -192,9 +276,15 @@ func (sm *SessionManager) Close(sessionID string) error {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
+	// Try to load session from file if not in memory
 	session, ok := sm.sessions[sessionID]
 	if !ok {
-		return fmt.Errorf("session not found: %s", sessionID)
+		// Load from file
+		loadedSession, err := loadSession(sessionID)
+		if err != nil {
+			return err
+		}
+		session = loadedSession
 	}
 
 	// Kill the browser process if it exists
@@ -207,10 +297,20 @@ func (sm *SessionManager) Close(sessionID string) error {
 					fmt.Printf("Warning: failed to kill browser process: %v\n", err)
 				}
 			}
+		} else if proc, ok := session.Process.(*os.Process); ok {
+			// Process loaded from file
+			if err := proc.Kill(); err != nil {
+				fmt.Printf("Warning: failed to kill browser process: %v\n", err)
+			}
 		}
 	}
 
-	// Remove session from map
+	// Delete session file
+	if err := deleteSession(sessionID); err != nil {
+		fmt.Printf("Warning: failed to delete session file: %v\n", err)
+	}
+
+	// Remove session from memory map
 	delete(sm.sessions, sessionID)
 
 	return nil

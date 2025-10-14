@@ -15,6 +15,7 @@ It targets Korean tax/accounting services (Hometax, Wehago) with sophisticated U
 func init() {
 	// Register commands
 	rootCmd.AddCommand(browserLaunchCmd)
+	rootCmd.AddCommand(browserCloseCmd)
 
 	// Global flags
 	rootCmd.PersistentFlags().Bool("verbose", false, "Enable verbose logging")
