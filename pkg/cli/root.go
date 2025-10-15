@@ -19,6 +19,7 @@ func init() {
 	rootCmd.AddCommand(pageNavigateCmd)
 	rootCmd.AddCommand(elementClickCmd)
 	rootCmd.AddCommand(elementTypeCmd)
+	rootCmd.AddCommand(formFillCmd)
 	rootCmd.AddCommand(pageScreenshotCmd)
 	rootCmd.AddCommand(sessionListCmd)
 	rootCmd.AddCommand(sessionCloseCmd)
