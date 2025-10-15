@@ -232,6 +232,23 @@ func (sm *SessionManager) Create(ctx context.Context, browserType string, headle
 											typed: true
 										}
 									}) + '\n');
+								} else if (cmd.command === 'pdf') {
+									const pdf = await page.pdf({
+										format: cmd.format || 'A4',
+										landscape: cmd.landscape || false,
+										printBackground: cmd.printBackground !== undefined ? cmd.printBackground : true,
+										timeout: cmd.timeout || 30000
+									});
+									const base64 = pdf.toString('base64');
+									socket.write(JSON.stringify({
+										success: true,
+										data: {
+											pdf: base64,
+											format: cmd.format || 'A4',
+											landscape: cmd.landscape || false,
+											printBackground: cmd.printBackground !== undefined ? cmd.printBackground : true
+										}
+									}) + '\n');
 								} else if (cmd.command === 'ping') {
 									socket.write(JSON.stringify({
 										success: true,
