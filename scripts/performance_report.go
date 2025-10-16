@@ -32,7 +32,8 @@ type CommandStats struct {
 
 func main() {
 	fmt.Println("📊 webauto Performance Report Generator")
-	fmt.Println("========================================\n")
+	fmt.Println("========================================")
+	fmt.Println()
 
 	// Read benchmark results
 	results, err := readBenchmarkResults("benchmark_results.csv")

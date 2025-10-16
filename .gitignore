@@ -6,7 +6,7 @@
 *.dylib
 plugin-name
 plugin-name.exe
-webauto
+/webauto
 
 # Test binary
 *.test
