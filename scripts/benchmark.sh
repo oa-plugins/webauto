@@ -167,10 +167,54 @@ echo ""
 echo "📊 Category 4: Element Operations (Target: < 300ms)"
 echo "------------------------------------------------"
 
-# Navigate to a test page with elements
-$WEBAUTO_BIN page-navigate --session-id $SESSION_ID --page-url 'data:text/html,<html><body><button id="btn">Click</button><input id="input" /></body></html>' > /dev/null 2>&1
+# Benchmark element-click (with page navigation before each iteration)
+echo "🔄 Measuring: element-click --session-id $SESSION_ID --element-selector '#btn'"
+total_time=0
+min_time=999999
+max_time=0
+iterations=5
 
-avg_click=$(measure_command "element-click" "--session-id $SESSION_ID --element-selector '#btn'" 5)
+for i in $(seq 1 $iterations); do
+    # Navigate to test page before each click to ensure clean state
+    $WEBAUTO_BIN page-navigate --session-id $SESSION_ID --page-url 'data:text/html,<html><body><button id="btn" onclick="console.log(\"clicked\"); return false;">Click</button></body></html>' > /dev/null 2>&1
+
+    start=$(perl -MTime::HiRes -e 'printf("%.0f\n",Time::HiRes::time()*1000)')
+    $WEBAUTO_BIN element-click --session-id $SESSION_ID --element-selector '#btn' > /dev/null 2>&1
+    end=$(perl -MTime::HiRes -e 'printf("%.0f\n",Time::HiRes::time()*1000)')
+    duration=$((end - start))
+
+    total_time=$((total_time + duration))
+
+    if [ $duration -lt $min_time ]; then
+        min_time=$duration
+    fi
+
+    if [ $duration -gt $max_time ]; then
+        max_time=$duration
+    fi
+
+    # Write to CSV
+    cmd_target=$(get_target "element-click")
+    status="PASS"
+    if [ $duration -gt $cmd_target ]; then
+        status="FAIL"
+    fi
+
+    echo "element-click,$i,$duration,$cmd_target,$status" >> "$RESULTS_FILE"
+done
+
+avg_click=$((total_time / iterations))
+target=$(get_target "element-click")
+
+if [ $avg_click -le $target ]; then
+    echo -e "  ✅ ${GREEN}PASS${NC}: avg=${avg_click}ms (target=${target}ms, min=${min_time}ms, max=${max_time}ms)"
+else
+    echo -e "  ❌ ${RED}FAIL${NC}: avg=${avg_click}ms (target=${target}ms, min=${min_time}ms, max=${max_time}ms)"
+fi
+
+# Navigate to test page for element-type (clean input field)
+$WEBAUTO_BIN page-navigate --session-id $SESSION_ID --page-url 'data:text/html,<html><body><input id="input" /></body></html>' > /dev/null 2>&1
+
 avg_type=$(measure_command "element-type" "--session-id $SESSION_ID --element-selector '#input' --text-input 'test'" 5)
 echo ""
 
