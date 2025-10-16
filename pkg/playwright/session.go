@@ -587,12 +587,9 @@ func (sm *SessionManager) SendCommand(ctx context.Context, sessionID string, com
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	// Update last used time
+	// Update last used time (in-memory only for performance)
+	// File I/O will happen periodically in background or on session close
 	session.LastUsedAt = time.Now()
-	if err := session.saveSession(); err != nil {
-		// Log error but don't fail the operation
-		fmt.Printf("Warning: failed to update session timestamp: %v\n", err)
-	}
 
 	return &resp, nil
 }

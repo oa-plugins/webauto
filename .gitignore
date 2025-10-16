@@ -42,3 +42,10 @@ dist/
 # Temporary files
 *.tmp
 *.bak
+
+# Performance benchmark outputs
+benchmark_results.csv
+benchmark_output.log
+
+# Temporary summary files
+PERFORMANCE_OPTIMIZATION_SUMMARY.txt

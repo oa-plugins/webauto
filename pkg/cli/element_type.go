@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/oa-plugins/webauto/pkg/config"
 	"github.com/oa-plugins/webauto/pkg/playwright"
 	"github.com/oa-plugins/webauto/pkg/response"
 	"github.com/spf13/cobra"
@@ -37,11 +36,9 @@ func runElementType(cmd *cobra.Command, args []string) {
 	startTime := time.Now()
 	ctx := context.Background()
 
-	// Load configuration
-	cfg := config.Load()
 
-	// Initialize session manager
-	sessionMgr := playwright.NewSessionManager(cfg)
+	// Get global session manager (singleton pattern)
+	sessionMgr := playwright.GetGlobalSessionManager()
 
 	// Send type command to session
 	typeCmd := map[string]interface{}{

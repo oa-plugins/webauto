@@ -3,7 +3,6 @@ package cli
 import (
 	"time"
 
-	"github.com/oa-plugins/webauto/pkg/config"
 	"github.com/oa-plugins/webauto/pkg/playwright"
 	"github.com/oa-plugins/webauto/pkg/response"
 	"github.com/spf13/cobra"
@@ -23,11 +22,9 @@ func init() {
 func runSessionList(cmd *cobra.Command, args []string) {
 	startTime := time.Now()
 
-	// Load configuration
-	cfg := config.Load()
 
-	// Initialize session manager
-	sessionMgr := playwright.NewSessionManager(cfg)
+	// Get global session manager (singleton pattern)
+	sessionMgr := playwright.GetGlobalSessionManager()
 
 	// Get all sessions (memory + file system)
 	sessions := sessionMgr.ListAll()
