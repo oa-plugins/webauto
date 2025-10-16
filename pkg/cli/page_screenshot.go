@@ -1,8 +1,12 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
+	"image"
+	_ "image/jpeg"
+	_ "image/png"
 	"os"
 	"time"
 
@@ -136,13 +140,25 @@ func runPageScreenshot(cmd *cobra.Command, args []string) {
 		fileSize = fileInfo.Size()
 	}
 
+	// Get image dimensions
+	imageWidth := 0
+	imageHeight := 0
+	imgReader := bytes.NewReader(screenshotBytes)
+	imgConfig, _, err := image.DecodeConfig(imgReader)
+	if err == nil {
+		imageWidth = imgConfig.Width
+		imageHeight = imgConfig.Height
+	}
+
 	// Success response
 	resp := response.Success(map[string]interface{}{
-		"session_id": sessionID,
-		"image_path": imagePath,
-		"type":       screenshotType,
-		"full_page":  fullPage,
-		"file_size":  fileSize,
+		"session_id":   sessionID,
+		"image_path":   imagePath,
+		"type":         screenshotType,
+		"full_page":    fullPage,
+		"file_size":    fileSize,
+		"image_width":  imageWidth,
+		"image_height": imageHeight,
 	}, startTime)
 	resp.Print()
 }
