@@ -272,6 +272,34 @@ func (sm *SessionManager) Create(ctx context.Context, browserType string, headle
 											element_count: count
 										}
 									}) + '\n');
+								} else if (cmd.command === 'get-attribute') {
+									const element = page.locator(cmd.selector);
+									const count = await element.count();
+
+									let attributeValue;
+									if (count === 0) {
+										throw new Error('Element not found: ' + cmd.selector);
+									} else if (count === 1) {
+										attributeValue = await element.getAttribute(cmd.attributeName, { timeout: cmd.timeout || 30000 });
+									} else {
+										// Multiple elements: return array of attribute values
+										const values = [];
+										for (let i = 0; i < count; i++) {
+											const value = await element.nth(i).getAttribute(cmd.attributeName);
+											values.push(value);
+										}
+										attributeValue = values;
+									}
+
+									socket.write(JSON.stringify({
+										success: true,
+										data: {
+											selector: cmd.selector,
+											attribute_name: cmd.attributeName,
+											attribute_value: attributeValue,
+											element_count: count
+										}
+									}) + '\n');
 								} else if (cmd.command === 'ping') {
 									socket.write(JSON.stringify({
 										success: true,

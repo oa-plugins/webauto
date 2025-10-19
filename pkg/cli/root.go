@@ -20,6 +20,7 @@ func init() {
 	rootCmd.AddCommand(elementClickCmd)
 	rootCmd.AddCommand(elementTypeCmd)
 	rootCmd.AddCommand(elementGetTextCmd)
+	rootCmd.AddCommand(elementGetAttributeCmd)
 	rootCmd.AddCommand(formFillCmd)
 	rootCmd.AddCommand(pageScreenshotCmd)
 	rootCmd.AddCommand(pagePdfCmd)
