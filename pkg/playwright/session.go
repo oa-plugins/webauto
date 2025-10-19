@@ -367,6 +367,51 @@ func (sm *SessionManager) Create(ctx context.Context, browserType string, headle
 											elements: elements
 										}
 									}) + '\n');
+								} else if (cmd.command === 'get-html') {
+									let html;
+									if (cmd.selector) {
+										const element = page.locator(cmd.selector);
+										const count = await element.count();
+										if (count === 0) {
+											throw new Error('Element not found: ' + cmd.selector);
+										}
+										html = await element.innerHTML({ timeout: cmd.timeout || 30000 });
+									} else {
+										html = await page.content();
+									}
+									socket.write(JSON.stringify({
+										success: true,
+										data: {
+											html: html,
+											html_length: html.length,
+											selector: cmd.selector || null
+										}
+									}) + '\n');
+								} else if (cmd.command === 'evaluate') {
+									try {
+										const result = await page.evaluate(cmd.script);
+
+										// Detect result type
+										let resultType = typeof result;
+										if (result === null) {
+											resultType = 'null';
+										} else if (Array.isArray(result)) {
+											resultType = 'array';
+										}
+
+										socket.write(JSON.stringify({
+											success: true,
+											data: {
+												result: result,
+												result_type: resultType
+											}
+										}) + '\n');
+									} catch (evalError) {
+										socket.write(JSON.stringify({
+											success: false,
+											error: 'Script execution failed: ' + evalError.message
+										}) + '\n');
+									}
 								} else if (cmd.command === 'ping') {
 									socket.write(JSON.stringify({
 										success: true,
