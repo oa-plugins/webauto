@@ -332,6 +332,7 @@ func (sm *SessionManager) Create(ctx context.Context, browserType string, headle
 									// Apply limit
 									const limit = cmd.limit > 0 ? Math.min(cmd.limit, count) : count;
 									const elements = [];
+									const shouldTrim = cmd.trim !== false; // Default to true
 
 									for (let i = 0; i < limit; i++) {
 										const el = locator.nth(i);
@@ -339,7 +340,12 @@ func (sm *SessionManager) Create(ctx context.Context, browserType string, headle
 
 										// Get text if requested
 										if (cmd.getText) {
-											item.text = await el.textContent({ timeout: cmd.timeout || 30000 });
+											let text = await el.textContent({ timeout: cmd.timeout || 30000 });
+											// Trim whitespace if enabled (default: true)
+											if (shouldTrim && text) {
+												text = text.replace(/^\s+|\s+$/g, '').replace(/\s+/g, ' ');
+											}
+											item.text = text;
 										}
 
 										// Get attribute if requested

@@ -16,6 +16,7 @@ var (
 	queryAllAttribute  string
 	queryAllLimit      int
 	queryAllTimeout    int
+	queryAllTrim       bool
 )
 
 var elementQueryAllCmd = &cobra.Command{
@@ -43,6 +44,7 @@ func init() {
 	elementQueryAllCmd.Flags().StringVar(&queryAllAttribute, "get-attribute", "", "Attribute name to extract (href, src, class, etc.)")
 	elementQueryAllCmd.Flags().IntVar(&queryAllLimit, "limit", 0, "Maximum number of elements to process (0 = all elements)")
 	elementQueryAllCmd.Flags().IntVar(&queryAllTimeout, "timeout-ms", 30000, "Timeout in milliseconds")
+	elementQueryAllCmd.Flags().BoolVar(&queryAllTrim, "trim", true, "Trim whitespace from extracted text (default: true)")
 
 	elementQueryAllCmd.MarkFlagRequired("session-id")
 	elementQueryAllCmd.MarkFlagRequired("element-selector")
@@ -78,6 +80,7 @@ func runElementQueryAll(cmd *cobra.Command, args []string) {
 		"command":  "query-all",
 		"selector": queryAllSelector,
 		"getText":  queryAllGetText,
+		"trim":     queryAllTrim,
 		"limit":    queryAllLimit,
 		"timeout":  queryAllTimeout,
 	}
