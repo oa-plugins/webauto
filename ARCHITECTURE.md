@@ -28,7 +28,7 @@ webauto 플러그인은 Playwright Agents를 활용한 지능형 브라우저 �
 - `workflow-execute`: 생성된 자동화 스크립트 실행
 - `workflow-heal`: Healer Agent로 실패한 스크립트 자동 수리
 
-**Direct Browser Control** (9개 명령어):
+**Direct Browser Control** (10개 명령어):
 - `browser-launch`: 브라우저 시작
 - `browser-close`: 브라우저 종료
 - `page-navigate`: URL 이동
@@ -36,7 +36,8 @@ webauto 플러그인은 Playwright Agents를 활용한 지능형 브라우저 �
 - `element-type`: 텍스트 입력
 - `element-get-text`: 텍스트 추출
 - `element-get-attribute`: 속성값 추출
-- `element-wait`: 요소 대기 (visible, hidden, attached, detached) ✨ NEW
+- `element-wait`: 요소 대기 (visible, hidden, attached, detached)
+- `element-query-all`: 다중 요소 일괄 조회 (텍스트/속성 추출) ✨ NEW
 - `form-fill`: 폼 자동 입력
 
 **Data Extraction** (2개 명령어):
@@ -47,7 +48,7 @@ webauto 플러그인은 Playwright Agents를 활용한 지능형 브라우저 �
 - `session-list`: 활성 세션 목록
 - `session-close`: 세션 종료
 
-**총 17개 명령어**
+**총 18개 명령어**
 
 ### 설계 원칙
 
@@ -794,6 +795,210 @@ sleep 2  # 항상 2초 대기 (빠른 경우 시간 낭비, 느린 경우 실패
 oa webauto element-wait --element-selector ".results" --wait-for visible --timeout-ms 5000
 # → 조건 만족 시 즉시 진행 (6ms~1234ms), 타임아웃만 5초로 설정
 ```
+
+---
+
+##### element-query-all
+
+**설명**: 여러 요소를 일괄 조회하여 텍스트/속성 추출
+
+**사용 사례**: 검색 결과 목록 수집, 플레이스 목록 크롤링, 테이블 데이터 추출, 메뉴 항목 수집, 블로그 제목/URL 일괄 추출
+
+**필수 플래그**:
+```bash
+--element-selector <string>   # CSS 셀렉터 또는 XPath
+--session-id <string>         # 세션 ID
+```
+
+**추출 플래그 (최소 1개 필수)**:
+```bash
+--get-text                    # 텍스트 내용 추출
+--get-attribute <name>        # 속성 값 추출 (href, src, class, id, data-*, aria-label 등)
+```
+
+**선택 플래그**:
+```bash
+--limit <int>                 # 최대 요소 개수 (0 = 모두, default: 0)
+--timeout-ms <int>            # 타임아웃 (default: 30000)
+```
+
+**실행 예시**:
+```bash
+# 블로그 제목 10개 추출 (텍스트만)
+oa webauto element-query-all \
+  --element-selector ".blog-title" \
+  --get-text \
+  --limit 10 \
+  --session-id ses_abc123
+
+# 링크 URL 추출 (속성만)
+oa webauto element-query-all \
+  --element-selector "a.blog-link" \
+  --get-attribute href \
+  --limit 5 \
+  --session-id ses_abc123
+
+# 블로그 제목 + URL 함께 추출
+oa webauto element-query-all \
+  --element-selector ".blog-item" \
+  --get-text \
+  --get-attribute href \
+  --limit 10 \
+  --session-id ses_abc123
+
+# 모든 요소 추출 (limit 없음)
+oa webauto element-query-all \
+  --element-selector "table tbody tr" \
+  --get-text \
+  --session-id ses_abc123
+```
+
+**JSON 출력 (성공 - 텍스트만)**:
+```json
+{
+  "success": true,
+  "data": {
+    "session_id": "ses_abc123",
+    "element_selector": ".blog-title",
+    "element_count": 50,
+    "limit": 10,
+    "note": "Returned 10 of 50 total elements (limited by --limit flag)",
+    "elements": [
+      {
+        "index": 0,
+        "text": "Playwright 자동화 가이드"
+      },
+      {
+        "index": 1,
+        "text": "웹 테스팅 자동화"
+      }
+    ]
+  },
+  "error": null,
+  "metadata": {
+    "plugin": "webauto",
+    "version": "1.0.0",
+    "execution_time_ms": 45
+  }
+}
+```
+
+**JSON 출력 (성공 - 텍스트 + 속성)**:
+```json
+{
+  "success": true,
+  "data": {
+    "session_id": "ses_abc123",
+    "element_selector": ".blog-item",
+    "element_count": 10,
+    "elements": [
+      {
+        "index": 0,
+        "text": "Playwright 자동화 가이드",
+        "attributes": {
+          "href": "https://blog.naver.com/example1"
+        }
+      },
+      {
+        "index": 1,
+        "text": "웹 테스팅 자동화",
+        "attributes": {
+          "href": "https://blog.naver.com/example2"
+        }
+      }
+    ]
+  },
+  "error": null,
+  "metadata": {
+    "plugin": "webauto",
+    "version": "1.0.0",
+    "execution_time_ms": 68
+  }
+}
+```
+
+**JSON 출력 (에러 - 요소 없음)**:
+```json
+{
+  "success": false,
+  "data": null,
+  "error": {
+    "code": "NO_ELEMENTS_FOUND",
+    "message": "Query all failed: No elements found: .nonexistent-class",
+    "details": {
+      "session_id": "ses_abc123",
+      "element_selector": ".nonexistent-class",
+      "get_text": true,
+      "get_attribute": "",
+      "limit": 0
+    },
+    "recovery_suggestion": "Check if elements exist and are accessible"
+  },
+  "metadata": {
+    "plugin": "webauto",
+    "version": "1.0.0",
+    "execution_time_ms": 3
+  }
+}
+```
+
+**JSON 출력 (에러 - 플래그 미지정)**:
+```json
+{
+  "success": false,
+  "data": null,
+  "error": {
+    "code": "INVALID_FLAG_COMBINATION",
+    "message": "At least one of --get-text or --get-attribute must be specified",
+    "details": {
+      "session_id": "ses_abc123",
+      "element_selector": ".blog-item",
+      "get_text": false,
+      "get_attribute": ""
+    },
+    "recovery_suggestion": "Specify --get-text, --get-attribute <name>, or both"
+  },
+  "metadata": {
+    "plugin": "webauto",
+    "version": "1.0.0",
+    "execution_time_ms": 0
+  }
+}
+```
+
+**사용 패턴**:
+```bash
+# 1) 페이지 이동
+oa webauto page-navigate --page-url "https://search.naver.com/search.naver?where=view&query=playwright" --session-id ses_abc123
+
+# 2) 검색 결과 대기
+oa webauto element-wait --element-selector ".title_link" --wait-for visible --session-id ses_abc123
+
+# 3) 블로그 제목 + URL 일괄 추출 (10개)
+oa webauto element-query-all \
+  --element-selector ".title_link" \
+  --get-text \
+  --get-attribute href \
+  --limit 10 \
+  --session-id ses_abc123
+```
+
+**성능 특성**:
+- **소수 요소 (1-10개)**: 10-50ms
+- **중간 요소 (10-50개)**: 50-200ms
+- **대량 요소 (50-100개)**: 200-500ms
+- **목표**: 100개 요소 기준 <1000ms
+
+**의존성**:
+- Issue #29 (`element-get-text`): 텍스트 추출 로직
+- Issue #30 (`element-get-attribute`): 속성 추출 로직
+
+**구현 세부사항**:
+- Playwright `locator.all()` API 사용
+- `limit` 플래그로 결과 개수 제어 (0 = 전체)
+- 각 요소에 `index` 필드 포함 (0부터 시작)
+- `--get-text`와 `--get-attribute` 동시 사용 가능
+- 한국어 텍스트 완벽 지원
 
 ---
 

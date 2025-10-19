@@ -321,6 +321,46 @@ func (sm *SessionManager) Create(ctx context.Context, browserType string, headle
 											element_found: count > 0
 										}
 									}) + '\n');
+								} else if (cmd.command === 'query-all') {
+									const locator = page.locator(cmd.selector);
+									const count = await locator.count();
+
+									if (count === 0) {
+										throw new Error('No elements found: ' + cmd.selector);
+									}
+
+									// Apply limit
+									const limit = cmd.limit > 0 ? Math.min(cmd.limit, count) : count;
+									const elements = [];
+
+									for (let i = 0; i < limit; i++) {
+										const el = locator.nth(i);
+										const item = { index: i };
+
+										// Get text if requested
+										if (cmd.getText) {
+											item.text = await el.textContent({ timeout: cmd.timeout || 30000 });
+										}
+
+										// Get attribute if requested
+										if (cmd.attributeName) {
+											item.attributes = {
+												[cmd.attributeName]: await el.getAttribute(cmd.attributeName)
+											};
+										}
+
+										elements.push(item);
+									}
+
+									socket.write(JSON.stringify({
+										success: true,
+										data: {
+											selector: cmd.selector,
+											element_count: count,
+											limit: limit,
+											elements: elements
+										}
+									}) + '\n');
 								} else if (cmd.command === 'ping') {
 									socket.write(JSON.stringify({
 										success: true,
