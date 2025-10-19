@@ -6,7 +6,7 @@ This guide tells Claude Code (claude.ai/code) how to work inside the **webauto**
 
 - **Purpose**: browser automation helper for the OA CLI focused on Korean tax/accounting portals (Hometax, Wehago).
 - **Stack**: Go CLI (Cobra) that shells out to a Node.js Playwright runner via JSON IPC.
-- **Current surfaced commands**: 13 lifecycle, navigation, element, extraction, and session utilities (no workflow/agent commands are compiled yet).
+- **Current surfaced commands**: 14 lifecycle, navigation, element, extraction, and session utilities (no workflow/agent commands are compiled yet).
 - **Planned extensions**: Agent-based workflows and richer anti-bot tooling remain design targets in `ARCHITECTURE.md`, but are not merged as of this snapshot.
 
 ## Single Source Of Truth
@@ -109,7 +109,7 @@ output, err := cmd.Output()
 ```
 Keep scripts compatible with plain `playwright`. Add new npm deps only when `package.json` declares them.
 
-## Command Surface (13)
+## Command Surface (14)
 
 **Browser Lifecycle**
 - `browser-launch`: boot a browser session, returns `session_id`
@@ -117,9 +117,11 @@ Keep scripts compatible with plain `playwright`. Add new npm deps only when `pac
 
 **Navigation & Form Actions**
 - `page-navigate`: load URL with optional wait config
+- `page-evaluate`: execute custom JavaScript in page context (Issue #34)
 - `element-click`: click selector
 - `element-type`: type text with optional delay
 - `element-wait`: wait for visibility/hidden/attached/detached
+- `element-query-all`: query multiple elements with optional data extraction
 - `form-fill`: map of field selectors to values and optional submit
 
 **Element Inspection**
@@ -128,6 +130,7 @@ Keep scripts compatible with plain `playwright`. Add new npm deps only when `pac
 
 **Data Extraction**
 - `page-screenshot`: save PNG to disk
+- `page-get-html`: get HTML source from page or element
 - `page-pdf`: save PDF (Chromium only)
 
 **Session Management**
