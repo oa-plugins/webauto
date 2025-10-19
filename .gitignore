@@ -35,6 +35,7 @@ Thumbs.db
 
 # Build artifacts
 bin/
+build/
 dist/
 *.zip
 *.tar.gz
@@ -47,5 +48,13 @@ dist/
 benchmark_results.csv
 benchmark_output.log
 
-# Temporary summary files
+# Temporary example scripts (not versioned)
+examples/*/multi_site_crawler.sh
+examples/*/sites_config.json
+examples/*/web_scraping.sh
+examples/hometax/
+examples/wehago/
+
+# Issue-specific implementation documents (use GitHub issues instead)
+IMPLEMENTATION_ISSUE_*.md
 PERFORMANCE_OPTIMIZATION_SUMMARY.txt
