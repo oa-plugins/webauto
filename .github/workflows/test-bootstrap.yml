@@ -1,0 +1,222 @@
+name: Bootstrap Runtime Test
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'pkg/bootstrap/**'
+      - 'cmd/webauto/**'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/test-bootstrap.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'pkg/bootstrap/**'
+      - 'cmd/webauto/**'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/test-bootstrap.yml'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  test-bootstrap:
+    name: Test on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            arch: x64
+          - os: macos-latest
+            platform: darwin
+            arch: arm64
+          - os: windows-latest
+            platform: windows
+            arch: x64
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+
+      - name: Display system info
+        run: |
+          echo "OS: ${{ runner.os }}"
+          echo "Architecture: ${{ runner.arch }}"
+          go version
+        shell: bash
+
+      - name: Build webauto
+        run: go build -v -o webauto${{ matrix.os == 'windows-latest' && '.exe' || '' }} cmd/webauto/main.go
+        shell: bash
+
+      - name: Test bootstrap (first run)
+        id: bootstrap-test
+        run: |
+          echo "Testing Node.js runtime bootstrap..."
+
+          # Set timeout based on OS (Windows might be slower)
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            TIMEOUT=180
+          else
+            TIMEOUT=120
+          fi
+
+          # Run bootstrap test with timeout
+          timeout ${TIMEOUT}s ./webauto${{ matrix.os == 'windows-latest' && '.exe' || '' }} browser-launch --headless true 2>&1 | tee bootstrap-output.txt
+
+          # Check if bootstrap succeeded
+          if grep -q '"success": true' bootstrap-output.txt; then
+            echo "✅ Bootstrap succeeded"
+            echo "bootstrap_success=true" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Bootstrap failed"
+            cat bootstrap-output.txt
+            echo "bootstrap_success=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+        shell: bash
+        timeout-minutes: 5
+
+      - name: Test cached runtime (second run)
+        if: steps.bootstrap-test.outputs.bootstrap_success == 'true'
+        run: |
+          echo "Testing cached runtime execution..."
+
+          # Second run should be fast (cached)
+          START_TIME=$(date +%s)
+          ./webauto${{ matrix.os == 'windows-latest' && '.exe' || '' }} browser-launch --headless true > cached-output.txt 2>&1
+          END_TIME=$(date +%s)
+          DURATION=$((END_TIME - START_TIME))
+
+          echo "Cached run took: ${DURATION}s"
+
+          # Check if cached run succeeded
+          if grep -q '"success": true' cached-output.txt; then
+            echo "✅ Cached runtime works"
+
+            # Verify it was fast (should be < 2s for cached run)
+            if [ $DURATION -lt 5 ]; then
+              echo "✅ Runtime was cached (${DURATION}s)"
+            else
+              echo "⚠️  Warning: Cached run was slow (${DURATION}s)"
+            fi
+          else
+            echo "❌ Cached runtime failed"
+            cat cached-output.txt
+            exit 1
+          fi
+        shell: bash
+
+      - name: Verify cache structure
+        if: steps.bootstrap-test.outputs.bootstrap_success == 'true'
+        run: |
+          echo "Verifying cache directory structure..."
+
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            CACHE_DIR="$LOCALAPPDATA/oa/webauto"
+          else
+            CACHE_DIR="$HOME/.cache/oa/webauto"
+          fi
+
+          echo "Cache directory: $CACHE_DIR"
+
+          # Check runtime directory
+          if [ -d "$CACHE_DIR/runtime" ]; then
+            echo "✅ Runtime directory exists"
+            ls -lh "$CACHE_DIR/runtime" || dir "$CACHE_DIR\\runtime"
+          else
+            echo "❌ Runtime directory missing"
+            exit 1
+          fi
+
+          # Check node_modules
+          if [ -d "$CACHE_DIR/node_modules" ]; then
+            echo "✅ node_modules directory exists"
+          else
+            echo "❌ node_modules directory missing"
+            exit 1
+          fi
+
+          # Check browsers
+          if [ -d "$CACHE_DIR/browsers" ]; then
+            echo "✅ Browsers directory exists"
+          else
+            echo "❌ Browsers directory missing"
+            exit 1
+          fi
+        shell: bash
+
+      - name: Test page-evaluate command
+        if: steps.bootstrap-test.outputs.bootstrap_success == 'true'
+        run: |
+          echo "Testing page-evaluate with bootstrapped runtime..."
+
+          # Launch browser and get session ID
+          SESSION_ID=$(./webauto${{ matrix.os == 'windows-latest' && '.exe' || '' }} browser-launch --headless true 2>&1 | grep -o '"session_id": "[^"]*"' | head -1 | cut -d'"' -f4)
+
+          if [ -z "$SESSION_ID" ]; then
+            echo "❌ Failed to get session ID"
+            exit 1
+          fi
+
+          echo "Session ID: $SESSION_ID"
+
+          # Test page-evaluate
+          ./webauto${{ matrix.os == 'windows-latest' && '.exe' || '' }} page-evaluate --session-id "$SESSION_ID" --script "1 + 1" > eval-output.txt 2>&1
+
+          if grep -q '"result": 2' eval-output.txt; then
+            echo "✅ page-evaluate works with bootstrapped runtime"
+          else
+            echo "❌ page-evaluate failed"
+            cat eval-output.txt
+            exit 1
+          fi
+
+          # Close session
+          ./webauto${{ matrix.os == 'windows-latest' && '.exe' || '' }} browser-close --session-id "$SESSION_ID"
+        shell: bash
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bootstrap-logs-${{ matrix.os }}
+          path: |
+            bootstrap-output.txt
+            cached-output.txt
+            eval-output.txt
+          retention-days: 7
+
+  summary:
+    name: Test Summary
+    needs: test-bootstrap
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check test results
+        run: |
+          echo "## Bootstrap Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ needs.test-bootstrap.result }}" = "success" ]; then
+            echo "✅ All platform tests passed!" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Some platform tests failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Platform | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Ubuntu (Linux x64) | ${{ needs.test-bootstrap.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| macOS (Darwin arm64) | ${{ needs.test-bootstrap.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Windows (x64) | ${{ needs.test-bootstrap.result }} |" >> $GITHUB_STEP_SUMMARY

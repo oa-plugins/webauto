@@ -86,7 +86,7 @@ func extractArchive(archivePath, destDir, ext string) error {
 	case ".zip":
 		return ExtractZip(archivePath, destDir)
 	case ".tar.xz":
-		return fmt.Errorf("tar.xz extraction not yet implemented (Linux support coming soon)")
+		return ExtractTarXz(archivePath, destDir)
 	default:
 		return fmt.Errorf("unsupported archive format: %s", ext)
 	}
