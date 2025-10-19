@@ -1,36 +1,34 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This guide tells Claude Code (claude.ai/code) how to work inside the **webauto** repository.
 
 ## Project Overview
 
-**webauto** is a Playwright Agents-based intelligent browser automation plugin for the OA (Office Automation) CLI system. It targets Korean tax/accounting services (Hometax, Wehago) with sophisticated UI automation and anti-bot capabilities.
+- **Purpose**: browser automation helper for the OA CLI focused on Korean tax/accounting portals (Hometax, Wehago).
+- **Stack**: Go CLI (Cobra) that shells out to a Node.js Playwright runner via JSON IPC.
+- **Current surfaced commands**: 13 lifecycle, navigation, element, extraction, and session utilities (no workflow/agent commands are compiled yet).
+- **Planned extensions**: Agent-based workflows and richer anti-bot tooling remain design targets in `ARCHITECTURE.md`, but are not merged as of this snapshot.
 
-**Architecture**: Go CLI wrapper + Node.js Playwright Agents integration via subprocess IPC
-**Target**: 14 commands across 4 categories (Agent-based, Browser Control, Data Extraction, Session Management)
+## Single Source Of Truth
+
+- 모든 버그·기능 논의, 결정 사항은 **반드시 GitHub Issues**에 기록합니다.
+- 이 문서는 절차/규칙만 요약합니다. 이슈 히스토리나 중복 설명을 추가하지 말고 관련 이슈 번호를 참조 링크로 남기세요.
+- 새 작업을 시작할 때는 열려 있는 Issue, 혹은 연결된 PR의 TODO를 우선 확인하세요.
 
 ## Critical Standards
 
-### Command Naming Convention
-**Pattern**: `<resource>-<action>`
+### Command Naming
+- Pattern: `<resource>-<action>`
+- ✅ `browser-launch`, `page-navigate`, `element-get-text`
+- ❌ `launch`, `navigate`, `get` (resource missing)
 
-Examples:
-- ✅ `browser-launch`, `page-navigate`, `workflow-plan`
-- ❌ `launch`, `navigate`, `plan` (missing resource)
-
-### Flag Naming Convention
-**Pattern**: `--<domain-noun>-<attribute>`
-
-**IMPORTANT**: Use domain-specific nouns, NOT generic terms.
-
-Examples:
-- ✅ `--page-url`, `--script-file`, `--browser-type`, `--element-selector`, `--image-path`
-- ❌ `--file-path`, `--input`, `--output`, `--path` (too generic)
-
-Rationale: `--image-path` is explicit (screenshot file), while `--file-path` is ambiguous (script? plan? image?).
+### Flag Naming
+- Pattern: `--<domain-noun>-<attribute>`
+- ✅ `--page-url`, `--session-id`, `--element-selector`
+- ❌ `--input`, `--path`, `--value` (too generic)
 
 ### JSON Output Schema
-**All commands MUST return**:
+All commands **must** return:
 ```json
 {
   "success": boolean,
@@ -48,145 +46,115 @@ Rationale: `--image-path` is explicit (screenshot file), while `--file-path` is 
   }
 }
 ```
-
-Error codes must be `UPPER_SNAKE_CASE` (e.g., `ELEMENT_NOT_FOUND`, `SESSION_NOT_FOUND`).
+Error codes stay in `UPPER_SNAKE_CASE` (`ELEMENT_NOT_FOUND`, `SESSION_NOT_FOUND`, `INVALID_WAIT_CONDITION`, ...).
 
 ## Build & Test Commands
 
 ### Setup
 ```bash
-# Install Node.js dependencies (Playwright Agents)
 npm install
 npx playwright install chromium firefox webkit
-
-# Install Go dependencies
 go mod tidy
 ```
 
 ### Build
 ```bash
-# Single platform
 go build -o webauto cmd/webauto/main.go
-
-# Cross-platform builds
 GOOS=windows GOARCH=amd64 go build -o webauto.exe cmd/webauto/main.go
-GOOS=darwin GOARCH=amd64 go build -o webauto cmd/webauto/main.go
 GOOS=darwin GOARCH=arm64 go build -o webauto cmd/webauto/main.go
 GOOS=linux GOARCH=amd64 go build -o webauto cmd/webauto/main.go
 ```
 
 ### Test
 ```bash
-# Unit tests
 go test ./...
-
-# Coverage
 go test -coverprofile=coverage.out ./...
 go tool cover -html=coverage.out
 
-# Integration test (verify JSON output)
+# Quick integration smoke (JSON contract)
 ./webauto browser-launch | jq .
 ./webauto session-list
 ```
 
 ## Architecture
 
-### Package Structure
+### Package Layout
 ```
 webauto/
-├── cmd/webauto/            # CLI entry point
-│   ├── main.go            # Root command, platform detection
-│   ├── commands_darwin.go  # macOS-specific commands
-│   ├── commands_linux.go   # Linux-specific commands
-│   └── commands_windows.go # Windows-specific commands
+├── cmd/webauto/          # Cobra entry + platform wiring
+├── internal/utils/       # UUID, JSON, time helpers
 ├── pkg/
-│   ├── config/            # Environment variable loading
-│   ├── response/          # StandardResponse types, error codes
-│   ├── cli/              # Cobra command definitions (14 commands)
-│   ├── playwright/       # Playwright Agents wrappers
-│   ├── antibot/          # Stealth mode, fingerprint, behavior randomization
-│   └── ipc/              # Node.js subprocess communication
-└── internal/utils/       # UUID, JSON, time utilities
+│   ├── cli/              # CLI command implementations (13 commands)
+│   ├── config/           # Environment-driven defaults and toggles
+│   ├── ipc/              # TCP/IPC helpers between Go and Node
+│   ├── playwright/       # Session manager + Playwright bridge
+│   └── response/         # StandardResponse builder utilities
+└── webauto/              # Node runner code (generated/maintained separately)
 ```
-
-### Command Categories (14 total)
-
-**Agent-Based Automation (4 commands)**:
-- `workflow-plan`: Planner Agent generates test plans from scenarios
-- `workflow-generate`: Generator Agent converts plans to Playwright code
-- `workflow-execute`: Execute generated scripts
-- `workflow-heal`: Healer Agent auto-repairs failed scripts
-
-**Browser Control (6 commands)**:
-- `browser-launch`, `browser-close`: Browser lifecycle
-- `page-navigate`: URL navigation
-- `element-click`, `element-type`: DOM interaction
-- `form-fill`: Multi-field form automation
-
-**Data Extraction (2 commands)**:
-- `page-screenshot`: Screenshot capture
-- `page-pdf`: PDF export
-
-**Session Management (2 commands)**:
-- `session-list`: List active browser sessions
-- `session-close`: Close specific session
 
 ### Go ↔ Node.js Integration
+1. Go spawns `node` with `exec.CommandContext`.
+2. Commands stream JSON over TCP sockets managed by `pkg/ipc`.
+3. Responses resolve to `response.StandardResponse` and propagate back to the CLI.
 
-**Communication Pattern**:
-1. Go spawns Node.js subprocess with `exec.CommandContext`
-2. Pass JSON via stdin, receive JSON from stdout
-3. Timeouts: Planner 60s, Generator 30s, Healer 90s
-4. Session persistence: In-memory map with UUID keys
-
-**Example** (Planner Agent):
+Example (`pkg/playwright/session.go`) snippet:
 ```go
 cmd := exec.CommandContext(ctx, nodePath,
-    "-e", `const { planner } = require('@playwright/agents');
-           (async () => {
-             const result = await planner.explore('${url}', { scenario: '${scenario}' });
-             console.log(JSON.stringify(result));
-           })();`)
+	"-e", fmt.Sprintf(`(async () => {
+		const { %s } = require('playwright');
+		/* ... */
+	})();`, browserType),
+)
 output, err := cmd.Output()
 ```
+Keep scripts compatible with plain `playwright`. Add new npm deps only when `package.json` declares them.
 
-### Anti-Bot Strategy
+## Command Surface (13)
 
-**Implemented Techniques**:
-1. **Playwright Stealth Mode**: Auto-hide WebDriver flags
-2. **Fingerprint Rotation**: User-Agent randomization from pool
-3. **Behavior Randomization**: 10-50ms typing delays, ±5-15px mouse jitter
-4. **Rate Limiting**: 500ms minimum interval between requests
+**Browser Lifecycle**
+- `browser-launch`: boot a browser session, returns `session_id`
+- `browser-close`: close session and clean up cache
 
-**Configuration** (via environment variables):
-- `ENABLE_STEALTH=true`
-- `ENABLE_FINGERPRINT=true`
-- `TYPING_DELAY_MS=30`
-- `MOUSE_MOVE_JITTER_PX=10`
+**Navigation & Form Actions**
+- `page-navigate`: load URL with optional wait config
+- `element-click`: click selector
+- `element-type`: type text with optional delay
+- `element-wait`: wait for visibility/hidden/attached/detached
+- `form-fill`: map of field selectors to values and optional submit
+
+**Element Inspection**
+- `element-get-text`: fetch inner text
+- `element-get-attribute`: fetch attribute value
+
+**Data Extraction**
+- `page-screenshot`: save PNG to disk
+- `page-pdf`: save PDF (Chromium only)
+
+**Session Management**
+- `session-list`: enumerate open sessions
+- `session-close`: close by ID
+
+When adding commands, register them in `pkg/cli/root.go` and expose shared helpers via `pkg/playwright`.
 
 ## Implementation Guidelines
 
-### Performance Targets
-| Category | Target | Measurement |
-|----------|--------|-------------|
-| Agent-based | 5-30s | Planner/Generator/Healer execution |
-| Browser control | <500ms | browser-launch/close |
-| Page control | <1000ms | page-navigate (includes network) |
-| Element ops | <300ms | element-click/type |
-| Data extraction | <1000ms | screenshot/PDF |
-| Session mgmt | <100ms | session-list/close |
+- Respect defaults from `pkg/config/config.go`. Anti-bot toggles (`ENABLE_STEALTH`, etc.) exist as configuration but still require handler code in the Playwright bridge—add behavior there when implementing enhancements.
+- Favor streaming JSON over stdout/stdin or TCP; avoid writing temporary files unless unavoidable.
+- Observe performance envelopes:
+  - `browser-launch` / `browser-close`: <500 ms nominal
+  - `page-navigate`: <1000 ms (network bound)
+  - Element interactions: <300 ms
+  - Screenshot/PDF: <1000 ms
 
-**Average (excluding Agents)**: <500ms
+## Error Handling
 
-### Error Handling
+Common failure modes and recoveries:
+- `NODE_NOT_FOUND`: ensure Node.js is on `PATH`
+- `PLAYWRIGHT_NOT_INSTALLED`: `npm install && npx playwright install chromium`
+- `SESSION_NOT_FOUND`: user passed stale `session_id`; suggest `session-list`
+- `ELEMENT_NOT_FOUND`: bad selector; advise wait condition or different locator
 
-**Common Errors**:
-- `NODE_NOT_FOUND`: Node.js not in PATH → Install from nodejs.org
-- `PLAYWRIGHT_NOT_INSTALLED`: Missing Playwright → `npm install playwright @playwright/agents`
-- `SESSION_NOT_FOUND`: Invalid session ID → Use `session-list` to verify
-- `ELEMENT_NOT_FOUND`: Selector invalid → Add `--wait-visible` or increase timeout
-
-**Error Response Example**:
+Standard error response template:
 ```json
 {
   "success": false,
@@ -199,7 +167,7 @@ output, err := cmd.Output()
       "page_url": "https://hometax.go.kr",
       "timeout_ms": 5000
     },
-    "recovery_suggestion": "Verify selector or use --wait-visible flag"
+    "recovery_suggestion": "Verify selector or adjust wait condition"
   },
   "metadata": {
     "plugin": "webauto",
@@ -209,97 +177,70 @@ output, err := cmd.Output()
 }
 ```
 
-## Workflow Examples
+## Usage Walkthrough
 
-### Agent-Based Automation (Recommended)
 ```bash
-# 1. Generate plan from scenario
-oa webauto workflow-plan \
-  --page-url "https://hometax.go.kr" \
-  --scenario-text "로그인 → 세금계산서 조회 → CSV 다운로드" \
-  --output-path hometax_plan.md
-
-# 2. Generate executable code
-oa webauto workflow-generate \
-  --plan-file hometax_plan.md \
-  --output-path hometax_automation.ts
-
-# 3. Execute automation
-oa webauto workflow-execute \
-  --script-file hometax_automation.ts \
-  --headless false
-
-# 4. Auto-heal failures
-oa webauto workflow-heal \
-  --script-file hometax_automation.ts \
-  --max-attempts 5
-```
-
-### Direct Browser Control
-```bash
-# 1. Launch browser
+# 1. Launch browser (Chromium headless by default)
 oa webauto browser-launch --headless false
-# → {"success": true, "data": {"session_id": "ses_abc123", ...}}
+# => {"success":true,"data":{"session_id":"ses_abcd1234",...}}
 
-# 2. Navigate
+# 2. Navigate to target page
 oa webauto page-navigate \
-  --page-url "https://hometax.go.kr" \
-  --session-id ses_abc123
+  --session-id ses_abcd1234 \
+  --page-url "https://hometax.go.kr"
 
-# 3. Fill form
-oa webauto form-fill \
-  --form-data '{"username":"user1","password":"pass123"}' \
-  --session-id ses_abc123 \
-  --submit true
+# 3. Wait and interact with elements
+oa webauto element-wait \
+  --session-id ses_abcd1234 \
+  --element-selector "#loginBtn" \
+  --wait-for visible
 
-# 4. Screenshot
+oa webauto element-click \
+  --session-id ses_abcd1234 \
+  --element-selector "#loginBtn"
+
+# 4. Capture evidence
 oa webauto page-screenshot \
-  --image-path result.png \
-  --session-id ses_abc123
+  --session-id ses_abcd1234 \
+  --image-path evidence.png
 
-# 5. Close
-oa webauto browser-close --session-id ses_abc123
+# 5. Close session
+oa webauto browser-close --session-id ses_abcd1234
 ```
 
 ## Platform Support
 
-- ✅ **Windows** 10/11: Chromium, Firefox (WebKit limited)
-- ✅ **macOS** 11+ (Intel/Apple Silicon): All browsers supported
-- ✅ **Linux** Ubuntu 20.04+: Chromium, Firefox (WebKit limited)
+- Windows 10/11 (Chromium, Firefox)
+- macOS 11+ Intel/Apple Silicon (Chromium, Firefox, WebKit)
+- Ubuntu 20.04+ (Chromium, Firefox; WebKit limited)
 
-**Platform-specific considerations**:
-- Windows: Node.js path typically `C:\Program Files\nodejs\node.exe`
-- macOS: Node.js path typically `/usr/local/bin/node`
-- Linux: Requires `libnss3`, `libatk1.0-0` dependencies for Playwright
+Platform notes:
+- Windows default node path: `C:\Program Files\nodejs\node.exe`
+- macOS: `/usr/local/bin/node` or asdf shim
+- Linux: ensure `libnss3`, `libatk1.0-0`, `libatk-bridge2.0-0`
 
-## Development Phases
+## Roadmap Alignment
 
-**Phase 1 (MVP)**: 5 core commands (browser-launch, browser-close, page-navigate, element-click, page-screenshot)
-- Target: Basic browser control POC, Hometax login page navigation
-
-**Phase 2 (Agents)**: 8 additional commands (all workflow-* + element-type, form-fill, session-*)
-- Target: Full Playwright Agents integration, auto-generated scripts
-
-**Phase 3 (Production)**: Remaining command (page-pdf) + cross-platform hardening
-- Target: Windows/macOS support, anti-bot enhancement, <500ms avg performance
+- Follow staged goals in `ARCHITECTURE.md` for agent workflows and advanced anti-bot behavior.
+- Gate new features behind Issues/PRs; update this document only when functionality lands in main.
 
 ## Key References
 
-- **Primary Design Doc**: [ARCHITECTURE.md](ARCHITECTURE.md) - Complete system design, all 14 commands, JSON schemas, error codes
-- **Implementation Guide**: [IMPLEMENTATION_GUIDE.md](IMPLEMENTATION_GUIDE.md) - Step-by-step coding instructions
-- **Original Idea**: [webauto-idea.md](https://github.com/oa-plugins/plugin-designer/blob/main/ideas/webauto-idea.md)
-- **OA Standards**: [plugin-designer PRD](https://github.com/oa-plugins/plugin-designer/blob/main/PRD.md)
-- **Playwright Docs**: https://playwright.dev/
-- **Playwright Agents**: https://playwright.dev/docs/test-agents
+- [ARCHITECTURE.md](ARCHITECTURE.md)
+- [docs/implementation-guide.md](docs/implementation-guide.md)
+- [PRODUCTION_READINESS_CHECKLIST.md](PRODUCTION_READINESS_CHECKLIST.md)
+- Original idea: [webauto-idea.md](https://github.com/oa-plugins/plugin-designer/blob/main/ideas/webauto-idea.md)
+- OA standards PRD: <https://github.com/oa-plugins/plugin-designer/blob/main/PRD.md>
+- Playwright docs: <https://playwright.dev/>
 
 ## Legal Notice
 
-**Personal Use Only**: This plugin is for automating YOUR OWN tax/accounting data.
+**Personal use only**: Automate your own accounts/data.
 
 **Prohibited**:
-- ❌ Unauthorized access to others' accounts
-- ❌ Terms of service violations
-- ❌ Commercial scraping
-- ❌ Excessive requests (rate limit abuse)
+- Unauthorized access to third-party accounts
+- Violation of site terms of service
+- Commercial scraping/resale
+- Excessive automated traffic
 
-Users are solely responsible for legal compliance.
+Compliance responsibility lies with the end user.
