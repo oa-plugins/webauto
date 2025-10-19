@@ -26,7 +26,7 @@ func init() {
 	rootCmd.AddCommand(elementQueryAllCmd)
 	rootCmd.AddCommand(formFillCmd)
 	rootCmd.AddCommand(pageScreenshotCmd)
-	rootCmd.AddCommand(pageGetHtmlCmd)
+	// rootCmd.AddCommand(pageGetHtmlCmd) // TODO: Add this when page_get_html.go is committed
 	rootCmd.AddCommand(pagePdfCmd)
 	rootCmd.AddCommand(sessionListCmd)
 	rootCmd.AddCommand(sessionCloseCmd)
