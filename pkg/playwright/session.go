@@ -300,6 +300,27 @@ func (sm *SessionManager) Create(ctx context.Context, browserType string, headle
 											element_count: count
 										}
 									}) + '\n');
+								} else if (cmd.command === 'wait') {
+									const element = page.locator(cmd.selector);
+									const startTime = Date.now();
+
+									await element.waitFor({
+										state: cmd.waitCondition || 'visible',
+										timeout: cmd.timeout || 30000
+									});
+
+									const waitedMs = Date.now() - startTime;
+									const count = await element.count();
+
+									socket.write(JSON.stringify({
+										success: true,
+										data: {
+											selector: cmd.selector,
+											wait_condition: cmd.waitCondition || 'visible',
+											waited_ms: waitedMs,
+											element_found: count > 0
+										}
+									}) + '\n');
 								} else if (cmd.command === 'ping') {
 									socket.write(JSON.stringify({
 										success: true,

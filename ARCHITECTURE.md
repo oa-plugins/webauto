@@ -28,14 +28,15 @@ webauto 플러그인은 Playwright Agents를 활용한 지능형 브라우저 �
 - `workflow-execute`: 생성된 자동화 스크립트 실행
 - `workflow-heal`: Healer Agent로 실패한 스크립트 자동 수리
 
-**Direct Browser Control** (8개 명령어):
+**Direct Browser Control** (9개 명령어):
 - `browser-launch`: 브라우저 시작
 - `browser-close`: 브라우저 종료
 - `page-navigate`: URL 이동
 - `element-click`: 요소 클릭
 - `element-type`: 텍스트 입력
 - `element-get-text`: 텍스트 추출
-- `element-get-attribute`: 속성값 추출 ✨ NEW
+- `element-get-attribute`: 속성값 추출
+- `element-wait`: 요소 대기 (visible, hidden, attached, detached) ✨ NEW
 - `form-fill`: 폼 자동 입력
 
 **Data Extraction** (2개 명령어):
@@ -46,7 +47,7 @@ webauto 플러그인은 Playwright Agents를 활용한 지능형 브라우저 �
 - `session-list`: 활성 세션 목록
 - `session-close`: 세션 종료
 
-**총 16개 명령어**
+**총 17개 명령어**
 
 ### 설계 원칙
 
@@ -678,6 +679,120 @@ oa webauto element-get-attribute \
     "execution_time_ms": 10
   }
 }
+```
+
+---
+
+##### element-wait
+
+**설명**: 요소가 특정 조건을 만족할 때까지 대기
+
+**사용 사례**: AJAX 로딩 후 결과 대기, 모달 팝업 표시 대기, 로딩 스피너 사라질 때까지 대기, 동적 콘텐츠 DOM 추가 대기
+
+**필수 플래그**:
+```bash
+--element-selector <string>   # CSS 셀렉터 또는 XPath
+--session-id <string>         # 세션 ID
+```
+
+**선택 플래그**:
+```bash
+--wait-for <string>           # 대기 조건 (visible|hidden|attached|detached, default: visible)
+--timeout-ms <int>            # 타임아웃 (default: 30000)
+```
+
+**대기 조건**:
+- `visible`: 요소가 화면에 보일 때까지 대기 (display, visibility, opacity 체크)
+- `hidden`: 요소가 사라질 때까지 대기
+- `attached`: 요소가 DOM에 추가될 때까지 대기
+- `detached`: 요소가 DOM에서 제거될 때까지 대기
+
+**실행 예시**:
+```bash
+# AJAX 로딩 후 검색 결과 대기
+oa webauto element-wait \
+  --element-selector ".search-results" \
+  --wait-for visible \
+  --session-id ses_abc123
+
+# 로딩 스피너 사라질 때까지 대기
+oa webauto element-wait \
+  --element-selector ".loading-spinner" \
+  --wait-for hidden \
+  --session-id ses_abc123 \
+  --timeout-ms 10000
+```
+
+**JSON 출력 (성공)**:
+```json
+{
+  "success": true,
+  "data": {
+    "session_id": "ses_abc123",
+    "element_selector": ".search-results",
+    "wait_condition": "visible",
+    "waited_ms": 1234,
+    "element_found": true
+  },
+  "error": null,
+  "metadata": {
+    "plugin": "webauto",
+    "version": "1.0.0",
+    "execution_time_ms": 1250
+  }
+}
+```
+
+**JSON 출력 (타임아웃)**:
+```json
+{
+  "success": false,
+  "data": null,
+  "error": {
+    "code": "TIMEOUT_EXCEEDED",
+    "message": "Wait failed: Element did not meet wait condition within timeout",
+    "details": {
+      "session_id": "ses_abc123",
+      "element_selector": ".search-results",
+      "wait_condition": "visible",
+      "timeout_ms": 5000
+    },
+    "recovery_suggestion": "Element did not meet wait condition within timeout"
+  },
+  "metadata": {
+    "plugin": "webauto",
+    "version": "1.0.0",
+    "execution_time_ms": 5003
+  }
+}
+```
+
+**사용 패턴**:
+```bash
+# 1) 페이지 이동
+oa webauto page-navigate --page-url "https://example.com" --session-id ses_abc123
+
+# 2) 검색 버튼이 보일 때까지 대기 (AJAX 로딩)
+oa webauto element-wait --element-selector "#search-btn" --wait-for visible --session-id ses_abc123
+
+# 3) 검색 버튼 클릭
+oa webauto element-click --element-selector "#search-btn" --session-id ses_abc123
+
+# 4) 결과가 나타날 때까지 대기
+oa webauto element-wait --element-selector ".results" --wait-for visible --session-id ses_abc123
+
+# 5) 결과 추출
+oa webauto element-get-text --element-selector ".results" --session-id ses_abc123
+```
+
+**고정 sleep 대비 장점**:
+```bash
+# ❌ 고정 sleep (비효율적, 불안정)
+sleep 2  # 항상 2초 대기 (빠른 경우 시간 낭비, 느린 경우 실패)
+
+# ✅ element-wait (효율적, 안정적)
+oa webauto element-wait --element-selector ".results" --wait-for visible --timeout-ms 5000
+# → 조건 만족 시 즉시 진행 (6ms~1234ms), 타임아웃만 5초로 설정
 ```
 
 ---
