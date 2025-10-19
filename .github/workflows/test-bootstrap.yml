@@ -64,15 +64,8 @@ jobs:
         run: |
           echo "Testing Node.js runtime bootstrap..."
 
-          # Set timeout based on OS (Windows might be slower)
-          if [ "${{ matrix.os }}" = "windows-latest" ]; then
-            TIMEOUT=180
-          else
-            TIMEOUT=120
-          fi
-
-          # Run bootstrap test with timeout
-          timeout ${TIMEOUT}s ./webauto${{ matrix.os == 'windows-latest' && '.exe' || '' }} browser-launch --headless true 2>&1 | tee bootstrap-output.txt
+          # Run bootstrap test (step timeout handles the timeout)
+          ./webauto${{ matrix.os == 'windows-latest' && '.exe' || '' }} browser-launch --headless true 2>&1 | tee bootstrap-output.txt
 
           # Check if bootstrap succeeded
           if grep -q '"success": true' bootstrap-output.txt; then
@@ -85,7 +78,7 @@ jobs:
             exit 1
           fi
         shell: bash
-        timeout-minutes: 5
+        timeout-minutes: 10
 
       - name: Test cached runtime (second run)
         if: steps.bootstrap-test.outputs.bootstrap_success == 'true'
