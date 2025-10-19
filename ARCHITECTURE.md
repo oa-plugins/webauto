@@ -28,12 +28,13 @@ webauto 플러그인은 Playwright Agents를 활용한 지능형 브라우저 �
 - `workflow-execute`: 생성된 자동화 스크립트 실행
 - `workflow-heal`: Healer Agent로 실패한 스크립트 자동 수리
 
-**Direct Browser Control** (6개 명령어):
+**Direct Browser Control** (7개 명령어):
 - `browser-launch`: 브라우저 시작
 - `browser-close`: 브라우저 종료
 - `page-navigate`: URL 이동
 - `element-click`: 요소 클릭
 - `element-type`: 텍스트 입력
+- `element-get-text`: 텍스트 추출 ✨ NEW
 - `form-fill`: 폼 자동 입력
 
 **Data Extraction** (2개 명령어):
@@ -44,7 +45,7 @@ webauto 플러그인은 Playwright Agents를 활용한 지능형 브라우저 �
 - `session-list`: 활성 세션 목록
 - `session-close`: 세션 종료
 
-**총 14개 명령어**
+**총 15개 명령어**
 
 ### 설계 원칙
 
@@ -486,6 +487,82 @@ oa webauto element-type \
     "plugin": "webauto",
     "version": "1.0.0",
     "execution_time_ms": 400
+  }
+}
+```
+
+---
+
+##### element-get-text
+
+**설명**: 요소의 텍스트 내용 추출
+
+**사용 사례**: 블로그 제목 수집, 플레이스 상호명 추출, 검색 결과 개수 확인
+
+**필수 플래그**:
+```bash
+--element-selector <string>   # CSS 셀렉터 또는 XPath
+--session-id <string>         # 세션 ID
+```
+
+**선택 플래그**:
+```bash
+--timeout-ms <int>            # 타임아웃 (default: 30000)
+```
+
+**실행 예시**:
+```bash
+oa webauto element-get-text \
+  --element-selector ".blog-title" \
+  --session-id ses_abc123
+```
+
+**JSON 출력**:
+```json
+{
+  "success": true,
+  "data": {
+    "session_id": "ses_abc123",
+    "element_selector": ".blog-title",
+    "text": "Playwright로 웹 자동화하기",
+    "element_count": 1
+  },
+  "error": null,
+  "metadata": {
+    "plugin": "webauto",
+    "version": "1.0.0",
+    "execution_time_ms": 15
+  }
+}
+```
+
+**다중 요소 처리**:
+```bash
+# 여러 블로그 제목 추출 (배열로 반환)
+oa webauto element-get-text \
+  --element-selector ".blog-title" \
+  --session-id ses_abc123
+```
+
+**JSON 출력 (다중 요소)**:
+```json
+{
+  "success": true,
+  "data": {
+    "session_id": "ses_abc123",
+    "element_selector": ".blog-title",
+    "text": [
+      "Playwright로 웹 자동화하기",
+      "브라우저 테스팅 완벽 가이드",
+      "네이버 블로그 자동화 팁"
+    ],
+    "element_count": 3
+  },
+  "error": null,
+  "metadata": {
+    "plugin": "webauto",
+    "version": "1.0.0",
+    "execution_time_ms": 25
   }
 }
 ```

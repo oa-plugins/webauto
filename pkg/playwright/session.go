@@ -249,6 +249,29 @@ func (sm *SessionManager) Create(ctx context.Context, browserType string, headle
 											printBackground: cmd.printBackground !== undefined ? cmd.printBackground : true
 										}
 									}) + '\n');
+								} else if (cmd.command === 'get-text') {
+									const element = page.locator(cmd.selector);
+									const count = await element.count();
+
+									let text;
+									if (count === 0) {
+										throw new Error('Element not found: ' + cmd.selector);
+									} else if (count === 1) {
+										text = await element.textContent({ timeout: cmd.timeout || 30000 });
+									} else {
+										// Multiple elements: return array of texts
+										const texts = await element.allTextContents();
+										text = texts;
+									}
+
+									socket.write(JSON.stringify({
+										success: true,
+										data: {
+											selector: cmd.selector,
+											text: text,
+											element_count: count
+										}
+									}) + '\n');
 								} else if (cmd.command === 'ping') {
 									socket.write(JSON.stringify({
 										success: true,
