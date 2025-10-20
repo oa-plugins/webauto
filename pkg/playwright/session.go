@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/oa-plugins/webauto/pkg/bootstrap"
 	"github.com/oa-plugins/webauto/pkg/config"
 	"github.com/oa-plugins/webauto/pkg/ipc"
 )
@@ -463,6 +464,9 @@ func (sm *SessionManager) Create(ctx context.Context, browserType string, headle
 
 	// Create command to run Node.js script
 	cmd := exec.CommandContext(ctx, sm.cfg.PlaywrightNodePath, "-e", script)
+
+	// Set working directory to cache dir so Node.js can find playwright module
+	cmd.Dir = bootstrap.GetCacheDir()
 
 	// Get stdout pipe for reading launch response
 	stdout, err := cmd.StdoutPipe()
