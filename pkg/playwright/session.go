@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -469,21 +470,60 @@ func (sm *SessionManager) Create(ctx context.Context, browserType string, headle
 		return nil, fmt.Errorf("failed to create stdout pipe: %w", err)
 	}
 
+	// Get stderr pipe for error messages
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create stderr pipe: %w", err)
+	}
+
 	// Start the process (non-blocking)
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("failed to start browser process: %w", err)
 	}
 
-	// Read first line of output (launch response)
-	scanner := bufio.NewScanner(stdout)
-	if !scanner.Scan() {
+	// Read first line of output (launch response) with timeout
+	type scanResult struct {
+		data []byte
+		err  error
+	}
+	scanChan := make(chan scanResult, 1)
+
+	go func() {
+		scanner := bufio.NewScanner(stdout)
+		if scanner.Scan() {
+			scanChan <- scanResult{data: scanner.Bytes(), err: nil}
+		} else {
+			scanChan <- scanResult{data: nil, err: scanner.Err()}
+		}
+	}()
+
+	// Wait for scan result or timeout
+	var scanData []byte
+	select {
+	case result := <-scanChan:
+		if result.err != nil || result.data == nil {
+			// Read stderr for error details
+			stderrData, _ := io.ReadAll(stderr)
+			cmd.Process.Kill()
+			if len(stderrData) > 0 {
+				return nil, fmt.Errorf("failed to read browser launch response, stderr: %s", string(stderrData))
+			}
+			return nil, fmt.Errorf("failed to read browser launch response")
+		}
+		scanData = result.data
+	case <-time.After(30 * time.Second):
+		// Timeout waiting for response
+		stderrData, _ := io.ReadAll(stderr)
 		cmd.Process.Kill()
-		return nil, fmt.Errorf("failed to read browser launch response")
+		if len(stderrData) > 0 {
+			return nil, fmt.Errorf("timeout waiting for browser launch response, stderr: %s", string(stderrData))
+		}
+		return nil, fmt.Errorf("timeout waiting for browser launch response")
 	}
 
 	// Parse launch response
 	var response ipc.NodeResponse
-	if err := json.Unmarshal(scanner.Bytes(), &response); err != nil {
+	if err := json.Unmarshal(scanData, &response); err != nil {
 		cmd.Process.Kill()
 		return nil, fmt.Errorf("failed to parse launch response: %w", err)
 	}

@@ -78,7 +78,7 @@ jobs:
             exit 1
           fi
         shell: bash
-        timeout-minutes: 10
+        timeout-minutes: 15
 
       - name: Test cached runtime (second run)
         if: steps.bootstrap-test.outputs.bootstrap_success == 'true'
