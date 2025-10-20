@@ -1,0 +1,88 @@
+# extract_headlines.oas - Naver News Headlines Extraction
+# Extracts news headlines from Naver News
+
+@set SEARCH_QUERY = "playwright automation"
+@set MAX_HEADLINES = 20
+@set OUTPUT_DIR = "./output"
+
+@echo "=== Naver News Headlines Extraction ==="
+@echo "Search query: ${SEARCH_QUERY}"
+@echo "Max headlines: ${MAX_HEADLINES}"
+@echo ""
+
+# Create output directory
+@if not exists("${OUTPUT_DIR}")
+  @mkdir "${OUTPUT_DIR}"
+@endif
+
+@set SESSION_ID = "news_extraction_session"
+@set TIMESTAMP = "$(date +%Y%m%d_%H%M%S)"
+
+@try
+  # Launch browser
+  @echo "Launching browser..."
+  oa plugin exec webauto browser-launch \
+    --session-id "${SESSION_ID}" \
+    --headless true
+
+  @echo "✅ Browser launched"
+  @echo ""
+
+  # Navigate to Naver News search
+  @echo "Searching for: ${SEARCH_QUERY}"
+  @set SEARCH_URL = "https://search.naver.com/search.naver?where=news&query=${SEARCH_QUERY}"
+
+  oa plugin exec webauto page-navigate \
+    --session-id "${SESSION_ID}" \
+    --page-url "${SEARCH_URL}"
+
+  @sleep 3000
+  @echo "✅ Search results loaded"
+  @echo ""
+
+  # Wait for news articles
+  @echo "Waiting for news articles..."
+  oa plugin exec webauto element-wait \
+    --session-id "${SESSION_ID}" \
+    --element-selector ".news_tit" \
+    --wait-for visible \
+    --timeout 5000
+
+  # Extract headlines
+  @echo "Extracting headlines..."
+  oa plugin exec webauto element-query-all \
+    --session-id "${SESSION_ID}" \
+    --element-selector ".news_tit" \
+    --get-text \
+    --get-attribute href \
+    --limit "${MAX_HEADLINES}"
+
+  @echo "✅ Extracted ${MAX_HEADLINES} headlines"
+  @echo ""
+
+  # Capture screenshot
+  @echo "Capturing screenshot..."
+  oa plugin exec webauto page-screenshot \
+    --session-id "${SESSION_ID}" \
+    --image-path "${OUTPUT_DIR}/news_headlines_${TIMESTAMP}.png"
+
+  @echo "✅ Screenshot: ${OUTPUT_DIR}/news_headlines_${TIMESTAMP}.png"
+  @echo ""
+
+  @echo "=========================================="
+  @echo "Extraction Completed"
+  @echo "=========================================="
+  @echo ""
+  @echo "Results saved to: ${OUTPUT_DIR}/"
+  @echo ""
+
+@catch
+  @echo "❌ Headline extraction failed"
+  @echo "   This may be due to:"
+  @echo "   - Anti-bot protection"
+  @echo "   - Network timeout"
+  @echo "   - UI structure change"
+@finally
+  @echo "Closing browser..."
+  oa plugin exec webauto browser-close --session-id "${SESSION_ID}"
+@endtry

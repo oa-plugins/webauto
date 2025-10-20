@@ -1,0 +1,54 @@
+# web_scraping.oas - Basic web scraping automation
+# Demonstrates basic browser automation and data extraction
+
+@set OUTPUT_DIR = "./output"
+@set TARGET_URL = "https://example.com"
+
+@echo "=== Web Scraping Automation Started ==="
+
+# Create output directory
+@if not exists("${OUTPUT_DIR}")
+  @mkdir "${OUTPUT_DIR}"
+@endif
+
+# 1. Launch browser
+@echo "1. Launching browser..."
+@set LAUNCH_RESULT = oa plugin exec webauto browser-launch --headless true
+
+# TODO: JSON path extraction when .oas supports it
+# For now, parse with external tool or use shell integration
+# @set SESSION_ID = ${LAUNCH_RESULT.data.session_id}
+
+# Temporary workaround: assume session ID is available
+@set SESSION_ID = "temp_session_001"
+
+@echo "✅ Session ID: ${SESSION_ID}"
+
+# 2. Navigate to website
+@echo "2. Navigating to ${TARGET_URL}..."
+oa plugin exec webauto page-navigate \
+  --session-id "${SESSION_ID}" \
+  --page-url "${TARGET_URL}"
+
+# 3. Take screenshot
+@echo "3. Capturing screenshot..."
+oa plugin exec webauto page-screenshot \
+  --session-id "${SESSION_ID}" \
+  --image-path "${OUTPUT_DIR}/example_screenshot.png"
+
+@echo "✅ Screenshot saved: ${OUTPUT_DIR}/example_screenshot.png"
+
+# 4. Save PDF (optional)
+@echo "4. Saving PDF..."
+oa plugin exec webauto page-pdf \
+  --session-id "${SESSION_ID}" \
+  --pdf-path "${OUTPUT_DIR}/example_page.pdf"
+
+@echo "✅ PDF saved: ${OUTPUT_DIR}/example_page.pdf"
+
+# 5. Cleanup
+@echo "5. Closing browser..."
+oa plugin exec webauto browser-close --session-id "${SESSION_ID}"
+
+@echo "=== Web Scraping Completed ==="
+@echo "Results saved to: ${OUTPUT_DIR}/"

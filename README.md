@@ -153,7 +153,69 @@ go test -coverprofile=coverage.out ./...
 go tool cover -html=coverage.out
 ```
 
-## 📚 문서
+## 📝 OAS Scripting (.oas 스크립트 지원)
+
+webauto 플러그인은 **Office Automation Script (.oas)** 포맷을 지원하여 Shell 스크립트보다 **45-69% 적은 코드**로 자동화를 구현할 수 있습니다.
+
+### .oas vs Shell Script 비교
+
+| 특징 | Shell Script | .oas Script | 개선도 |
+|------|-------------|-------------|--------|
+| 코드 라인 수 | 58-259줄 | 30-80줄 | **45-69% 감소** |
+| 외부 의존성 | bash, jq, grep | oa CLI만 | **1개만 필요** |
+| JSON 파싱 | jq 수동 파싱 | 내장 지원 | **자동화** |
+| 에러 처리 | 수동 체크 | @try/@catch | **안전성 향상** |
+| 가독성 | 중간 | 높음 | **유지보수 쉬움** |
+
+### 빠른 예시
+
+**Shell Script (58줄):**
+```bash
+#!/bin/bash
+set -e
+WEBAUTO="../../webauto"
+RESULT=$($WEBAUTO browser-launch --headless true)
+SESSION_ID=$(echo "$RESULT" | jq -r '.data.session_id')
+if [ -z "$SESSION_ID" ]; then exit 1; fi
+# ... 50+ more lines
+```
+
+**.oas Script (30줄):**
+```bash
+# web_scraping.oas
+@set SESSION_ID = "web_session"
+oa plugin exec webauto browser-launch --session-id "${SESSION_ID}"
+oa plugin exec webauto page-navigate --session-id "${SESSION_ID}" --page-url "https://example.com"
+oa plugin exec webauto page-screenshot --session-id "${SESSION_ID}" --image-path "output.png"
+oa plugin exec webauto browser-close --session-id "${SESSION_ID}"
+```
+
+### 실행 방법
+
+```bash
+# .oas 스크립트 실행
+oa batch run examples/oas-scripts/web_scraping.oas
+
+# Dry-run (실행하지 않고 확인만)
+oa batch run examples/oas-scripts/naver_blog_search.oas --dry-run
+
+# 변수 오버라이드
+oa batch run examples/oas-scripts/naver_map_search.oas --set SEARCH_QUERY="홍대입구 카페"
+```
+
+### 제공 예제
+
+- **web_scraping.oas**: 기본 웹 스크래핑 및 스크린샷 캡처
+- **naver_blog_search.oas**: 네이버 블로그 검색 및 데이터 추출
+- **naver_map_search.oas**: 네이버 지도 장소 검색
+- **advanced_form_automation.oas**: 재시도 로직을 포함한 폼 자동화
+
+### 상세 문서
+
+- **[OAS Scripting Guide](docs/oas-scripting-guide.md)**: 전체 .oas 문법 및 고급 예제
+- **[Migration Guide](docs/oas-migration-guide.md)**: Shell Script → .oas 변환 가이드
+
+## 📚 기타 문서
 
 - [플랫폼별 설치 가이드](docs/platform-guide.md)
 - [아키텍처 설계](ARCHITECTURE.md)

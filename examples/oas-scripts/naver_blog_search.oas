@@ -1,0 +1,79 @@
+# naver_blog_search.oas - Naver blog search automation
+# Searches multiple keywords and extracts blog post titles and URLs
+
+@set KEYWORDS = ["playwright", "automation", "browser testing"]
+@set OUTPUT_DIR = "./output/naver-blog"
+@set RESULTS_FILE = "${OUTPUT_DIR}/search_results.json"
+
+@echo "=== Naver Blog Search Automation ==="
+
+# Create output directory
+@if not exists("${OUTPUT_DIR}")
+  @mkdir "${OUTPUT_DIR}"
+@endif
+
+# Launch browser once
+@echo "Launching browser..."
+@set SESSION_ID = "naver_search_session"
+
+oa plugin exec webauto browser-launch \
+  --headless false \
+  --session-id "${SESSION_ID}"
+
+@echo "✅ Browser launched: ${SESSION_ID}"
+
+# Search for each keyword
+@foreach keyword in ${KEYWORDS}
+  @echo ""
+  @echo "Searching for: ${keyword}"
+
+  @try
+    # Navigate to Naver blog search
+    oa plugin exec webauto page-navigate \
+      --session-id "${SESSION_ID}" \
+      --page-url "https://search.naver.com/search.naver?where=view&query=${keyword}"
+
+    # Wait for results to load
+    @sleep 2000
+
+    # Wait for blog title elements
+    oa plugin exec webauto element-wait \
+      --session-id "${SESSION_ID}" \
+      --element-selector ".title_link" \
+      --wait-for visible \
+      --timeout 5000
+
+    # Extract blog post data
+    @echo "Extracting blog post data..."
+    oa plugin exec webauto element-query-all \
+      --session-id "${SESSION_ID}" \
+      --element-selector ".title_link" \
+      --get-text \
+      --get-attribute href \
+      --limit 10
+
+    # Take screenshot of search results
+    oa plugin exec webauto page-screenshot \
+      --session-id "${SESSION_ID}" \
+      --image-path "${OUTPUT_DIR}/search_${keyword}.png"
+
+    @echo "✅ Search completed for: ${keyword}"
+    @echo "   Screenshot: ${OUTPUT_DIR}/search_${keyword}.png"
+
+  @catch
+    @echo "⚠ Search failed for: ${keyword}"
+    @echo "   This may be due to anti-bot protection or network issues"
+  @endtry
+
+  # Wait between searches to avoid rate limiting
+  @sleep 3000
+
+@endforeach
+
+# Cleanup
+@echo ""
+@echo "Closing browser..."
+oa plugin exec webauto browser-close --session-id "${SESSION_ID}"
+
+@echo "=== Search Automation Completed ==="
+@echo "Results saved to: ${OUTPUT_DIR}/"

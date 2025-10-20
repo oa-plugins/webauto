@@ -1,0 +1,100 @@
+# parallel_session_management.oas - Managing Multiple Browser Sessions
+# Demonstrates handling multiple concurrent browser sessions
+
+@set SITES = [
+  "https://example.com",
+  "https://playwright.dev",
+  "https://github.com"
+]
+@set OUTPUT_DIR = "./output/parallel_sessions"
+
+@echo "=== Parallel Session Management ==="
+@echo "Sites to process: ${SITES.length}"
+@echo ""
+
+# Create output directory
+@if not exists("${OUTPUT_DIR}")
+  @mkdir "${OUTPUT_DIR}"
+@endif
+
+# Define session IDs
+@set SESSION_1 = "parallel_session_1"
+@set SESSION_2 = "parallel_session_2"
+@set SESSION_3 = "parallel_session_3"
+
+@set SESSIONS = ["${SESSION_1}", "${SESSION_2}", "${SESSION_3}"]
+
+@try
+  # Launch all sessions
+  @echo "Launching ${SESSIONS.length} browser sessions..."
+
+  @foreach session_id in ${SESSIONS}
+    @echo "  Launching session: ${session_id}"
+    oa plugin exec webauto browser-launch \
+      --session-id "${session_id}" \
+      --headless true
+  @endforeach
+
+  @echo "✅ All sessions launched"
+  @echo ""
+
+  # Process each site in its own session
+  @echo "Processing sites in parallel sessions..."
+  @set INDEX = 0
+
+  @foreach site in ${SITES}
+    @set SESSION_ID = "parallel_session_${INDEX}"
+    @echo ""
+    @echo "  [Session ${INDEX}] Processing: ${site}"
+
+    @try
+      # Navigate
+      oa plugin exec webauto page-navigate \
+        --session-id "${SESSION_ID}" \
+        --page-url "${site}"
+
+      @sleep 2000
+
+      # Capture screenshot
+      @set SITE_NAME = "$(echo ${site} | sed 's|https://||' | sed 's|/|_|g')"
+      oa plugin exec webauto page-screenshot \
+        --session-id "${SESSION_ID}" \
+        --image-path "${OUTPUT_DIR}/${SITE_NAME}_session${INDEX}.png"
+
+      @echo "    ✅ Processed in session ${INDEX}"
+
+    @catch
+      @echo "    ❌ Failed to process ${site}"
+    @endtry
+
+    @set INDEX = ${INDEX} + 1
+  @endforeach
+
+  @echo ""
+  @echo "=========================================="
+  @echo "Parallel Session Processing Completed"
+  @echo "=========================================="
+  @echo ""
+  @echo "Summary:"
+  @echo "  - Sessions used: ${SESSIONS.length}"
+  @echo "  - Sites processed: ${SITES.length}"
+  @echo "  - Output directory: ${OUTPUT_DIR}"
+  @echo ""
+
+@catch
+  @echo "❌ Parallel session management failed"
+@finally
+  # Close all sessions
+  @echo "Closing all browser sessions..."
+
+  @foreach session_id in ${SESSIONS}
+    @try
+      @echo "  Closing session: ${session_id}"
+      oa plugin exec webauto browser-close --session-id "${session_id}"
+    @catch
+      @echo "    ⚠️  Failed to close ${session_id}"
+    @endtry
+  @endforeach
+
+  @echo "✅ All sessions closed"
+@endtry

@@ -1,0 +1,91 @@
+# multi_site_crawler.oas - Multi-Site Web Crawler
+# Crawls multiple websites and collects screenshots/PDFs
+#
+# Usage:
+#   oa batch run multi_site_crawler.oas --set SITES='["https://example.com", "https://github.com"]'
+
+@set SITES = ["https://example.com", "https://github.com", "https://playwright.dev"]
+@set OUTPUT_DIR = "./output"
+@set WAIT_SECONDS = 2000
+
+@echo "=== Multi-Site Crawler Started ==="
+@echo "Total sites: ${SITES.length}"
+
+# Create timestamped output directory
+@set TIMESTAMP = "$(date +%Y%m%d_%H%M%S)"
+@set BATCH_DIR = "${OUTPUT_DIR}/batch_${TIMESTAMP}"
+
+@if not exists("${BATCH_DIR}")
+  @mkdir "${BATCH_DIR}"
+@endif
+
+# Launch browser once for all sites
+@set SESSION_ID = "crawler_session"
+
+@try
+  @echo "Launching browser..."
+  oa plugin exec webauto browser-launch \
+    --session-id "${SESSION_ID}" \
+    --headless true
+
+  @echo "✅ Browser launched: ${SESSION_ID}"
+  @echo ""
+
+  # Iterate through all sites
+  @set INDEX = 0
+  @foreach site in ${SITES}
+    @set INDEX = ${INDEX} + 1
+    @echo "[${INDEX}/${SITES.length}] Processing: ${site}"
+
+    @try
+      # Navigate to site
+      oa plugin exec webauto page-navigate \
+        --session-id "${SESSION_ID}" \
+        --page-url "${site}"
+
+      # Wait for page load
+      @sleep ${WAIT_SECONDS}
+
+      # Generate safe filename from URL
+      @set SITE_NAME = "$(echo ${site} | sed 's|https://||' | sed 's|http://||' | sed 's|/|_|g')"
+
+      # Capture screenshot
+      @echo "  Capturing screenshot..."
+      oa plugin exec webauto page-screenshot \
+        --session-id "${SESSION_ID}" \
+        --image-path "${BATCH_DIR}/${SITE_NAME}_screenshot.png"
+
+      @echo "  ✅ Screenshot saved: ${SITE_NAME}_screenshot.png"
+
+      # Save as PDF
+      @echo "  Saving PDF..."
+      oa plugin exec webauto page-pdf \
+        --session-id "${SESSION_ID}" \
+        --pdf-path "${BATCH_DIR}/${SITE_NAME}_page.pdf"
+
+      @echo "  ✅ PDF saved: ${SITE_NAME}_page.pdf"
+
+    @catch
+      @echo "  ❌ Failed to process ${site}"
+    @endtry
+
+    @echo ""
+  @endforeach
+
+  # Generate crawl report
+  @echo "Generating crawl report..."
+  @echo "{ \"timestamp\": \"${TIMESTAMP}\", \"session_id\": \"${SESSION_ID}\", \"total_sites\": ${SITES.length}, \"output_directory\": \"${BATCH_DIR}\" }" > "${BATCH_DIR}/crawl_report.json"
+
+@catch
+  @echo "❌ Crawler failed"
+@finally
+  @echo "Closing browser..."
+  oa plugin exec webauto browser-close --session-id "${SESSION_ID}"
+@endtry
+
+@echo ""
+@echo "=== Crawling Completed ==="
+@echo "✅ Results directory: ${BATCH_DIR}"
+@echo ""
+@echo "Collected files:"
+@echo "$(ls -lh ${BATCH_DIR}/)"

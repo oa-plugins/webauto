@@ -1,0 +1,219 @@
+# error_recovery_strategies.oas - Comprehensive Error Recovery Patterns
+# Demonstrates robust error handling and recovery strategies
+
+@set TARGET_URL = "https://example.com"
+@set MAX_RETRIES = 3
+@set RETRY_DELAY_MS = 5000
+@set OUTPUT_DIR = "./output/error_recovery"
+
+@echo "=== Error Recovery Strategies Demo ==="
+@echo "Target: ${TARGET_URL}"
+@echo "Max retries: ${MAX_RETRIES}"
+@echo ""
+
+# Create output directory
+@if not exists("${OUTPUT_DIR}")
+  @mkdir "${OUTPUT_DIR}"
+@endif
+
+@set SESSION_ID = "error_recovery_session"
+@set SUCCESS = false
+@set ATTEMPT = 0
+
+# Strategy 1: Retry with exponential backoff
+@echo "[Strategy 1] Retry with Exponential Backoff"
+@echo "=========================================="
+
+@while ${ATTEMPT} < ${MAX_RETRIES} and not ${SUCCESS}
+  @set ATTEMPT = ${ATTEMPT} + 1
+  @echo "Attempt ${ATTEMPT}/${MAX_RETRIES}..."
+
+  @try
+    # Launch browser
+    oa plugin exec webauto browser-launch \
+      --session-id "${SESSION_ID}" \
+      --headless true
+
+    @echo "  ✅ Browser launched"
+
+    # Navigate with timeout
+    oa plugin exec webauto page-navigate \
+      --session-id "${SESSION_ID}" \
+      --page-url "${TARGET_URL}"
+
+    @sleep 2000
+
+    # Verify page loaded
+    oa plugin exec webauto element-wait \
+      --session-id "${SESSION_ID}" \
+      --element-selector "body" \
+      --wait-for visible \
+      --timeout 5000
+
+    @set SUCCESS = true
+    @echo "  ✅ Operation successful on attempt ${ATTEMPT}"
+
+  @catch
+    @echo "  ❌ Attempt ${ATTEMPT} failed"
+
+    # Capture error screenshot
+    @try
+      oa plugin exec webauto page-screenshot \
+        --session-id "${SESSION_ID}" \
+        --image-path "${OUTPUT_DIR}/error_attempt_${ATTEMPT}.png"
+
+      @echo "    Error screenshot saved"
+    @catch
+      @echo "    Unable to capture error screenshot"
+    @endtry
+
+    # Close browser before retry
+    @try
+      oa plugin exec webauto browser-close --session-id "${SESSION_ID}"
+    @catch
+      @echo "    Browser already closed"
+    @endtry
+
+    # Exponential backoff
+    @if ${ATTEMPT} < ${MAX_RETRIES}
+      @set DELAY = ${RETRY_DELAY_MS} * ${ATTEMPT}
+      @echo "    Retrying in ${DELAY}ms..."
+      @sleep ${DELAY}
+    @endif
+
+  @endtry
+@endwhile
+
+@if not ${SUCCESS}
+  @echo ""
+  @echo "❌ All ${MAX_RETRIES} attempts failed"
+  @echo "   Check error screenshots in: ${OUTPUT_DIR}/"
+  @exit 1
+@endif
+
+@echo ""
+@echo "=========================================="
+@echo ""
+
+# Strategy 2: Fallback selectors
+@echo "[Strategy 2] Fallback Selectors"
+@echo "=========================================="
+
+@set SELECTORS = ["#main-content", ".content", "main", "body"]
+@set ELEMENT_FOUND = false
+
+@foreach selector in ${SELECTORS}
+  @if not ${ELEMENT_FOUND}
+    @echo "Trying selector: ${selector}"
+
+    @try
+      oa plugin exec webauto element-wait \
+        --session-id "${SESSION_ID}" \
+        --element-selector "${selector}" \
+        --wait-for visible \
+        --timeout 2000
+
+      @set ELEMENT_FOUND = true
+      @echo "  ✅ Element found with selector: ${selector}"
+
+    @catch
+      @echo "  ❌ Selector ${selector} not found, trying next..."
+    @endtry
+  @endif
+@endforeach
+
+@if not ${ELEMENT_FOUND}
+  @echo "❌ No selectors matched"
+@endif
+
+@echo ""
+@echo "=========================================="
+@echo ""
+
+# Strategy 3: Graceful degradation
+@echo "[Strategy 3] Graceful Degradation"
+@echo "=========================================="
+
+@set OPERATIONS = [
+  "high_priority_task",
+  "medium_priority_task",
+  "low_priority_task"
+]
+
+@foreach operation in ${OPERATIONS}
+  @echo "Executing: ${operation}"
+
+  @try
+    # Simulate operation
+    oa plugin exec webauto page-screenshot \
+      --session-id "${SESSION_ID}" \
+      --image-path "${OUTPUT_DIR}/${operation}.png"
+
+    @echo "  ✅ ${operation} completed"
+
+  @catch
+    @echo "  ⚠️  ${operation} failed, continuing with degraded functionality..."
+    # Continue with next operation instead of failing
+  @endtry
+@endforeach
+
+@echo ""
+@echo "=========================================="
+@echo ""
+
+# Strategy 4: Health check and recovery
+@echo "[Strategy 4] Health Check and Recovery"
+@echo "=========================================="
+
+@echo "Performing health check..."
+
+@try
+  # Try to get page title as health check
+  oa plugin exec webauto element-get-text \
+    --session-id "${SESSION_ID}" \
+    --element-selector "title"
+
+  @echo "  ✅ Session is healthy"
+
+@catch
+  @echo "  ❌ Session unhealthy, attempting recovery..."
+
+  @try
+    # Try to recover by closing and reopening
+    oa plugin exec webauto browser-close --session-id "${SESSION_ID}"
+    @sleep 2000
+
+    oa plugin exec webauto browser-launch --session-id "${SESSION_ID}"
+    oa plugin exec webauto page-navigate \
+      --session-id "${SESSION_ID}" \
+      --page-url "${TARGET_URL}"
+
+    @echo "  ✅ Session recovered"
+
+  @catch
+    @echo "  ❌ Recovery failed"
+  @endtry
+@endtry
+
+@echo ""
+@echo "=========================================="
+@echo "Error Recovery Strategies Demo Completed"
+@echo "=========================================="
+@echo ""
+@echo "Demonstrated strategies:"
+@echo "  1. Retry with exponential backoff"
+@echo "  2. Fallback selectors"
+@echo "  3. Graceful degradation"
+@echo "  4. Health check and recovery"
+@echo ""
+@echo "Error screenshots saved to: ${OUTPUT_DIR}/"
+@echo ""
+
+# Cleanup
+@finally
+  @try
+    oa plugin exec webauto browser-close --session-id "${SESSION_ID}"
+  @catch
+    @echo "Browser already closed"
+  @endtry
+@endtry

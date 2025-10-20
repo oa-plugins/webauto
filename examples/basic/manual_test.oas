@@ -1,0 +1,53 @@
+# manual_test.oas - Interactive Manual Testing Helper
+# Opens a browser for manual exploration and testing
+
+@set TARGET_URL = "https://example.com"
+@set HEADLESS = false
+
+@echo "=== Manual Testing Helper ==="
+@echo "Target URL: ${TARGET_URL}"
+@echo ""
+
+@set SESSION_ID = "manual_test_session"
+
+@try
+  # Launch browser in visible mode
+  @echo "Launching browser..."
+  oa plugin exec webauto browser-launch \
+    --session-id "${SESSION_ID}" \
+    --headless "${HEADLESS}"
+
+  @echo "✅ Browser launched"
+  @echo "Session ID: ${SESSION_ID}"
+  @echo ""
+
+  # Navigate to target
+  @echo "Navigating to: ${TARGET_URL}"
+  oa plugin exec webauto page-navigate \
+    --session-id "${SESSION_ID}" \
+    --page-url "${TARGET_URL}"
+
+  @echo ""
+  @echo "✅ Page loaded"
+  @echo ""
+  @echo "=========================================="
+  @echo "Manual Testing Session Active"
+  @echo "=========================================="
+  @echo ""
+  @echo "Available commands:"
+  @echo "  - Navigate: oa plugin exec webauto page-navigate --session-id ${SESSION_ID} --page-url <URL>"
+  @echo "  - Screenshot: oa plugin exec webauto page-screenshot --session-id ${SESSION_ID} --image-path <PATH>"
+  @echo "  - Click: oa plugin exec webauto element-click --session-id ${SESSION_ID} --element-selector <SELECTOR>"
+  @echo "  - Type: oa plugin exec webauto element-type --session-id ${SESSION_ID} --element-selector <SELECTOR> --element-text <TEXT>"
+  @echo "  - Close: oa plugin exec webauto browser-close --session-id ${SESSION_ID}"
+  @echo ""
+  @echo "Session ID: ${SESSION_ID}"
+  @echo ""
+  @echo "Browser will remain open for manual testing."
+  @echo "Close manually or use the browser-close command."
+  @echo ""
+
+@catch
+  @echo "❌ Failed to start manual testing session"
+  oa plugin exec webauto browser-close --session-id "${SESSION_ID}"
+@endtry

@@ -1,0 +1,103 @@
+# naver_map_search.oas - Naver map place search automation
+# Searches for places and extracts business information
+
+@set SEARCH_QUERY = "강남역 카페"
+@set OUTPUT_DIR = "./output/naver-map"
+@set MAX_RESULTS = 20
+
+@echo "=== Naver Map Place Search Automation ==="
+
+# Create output directory
+@if not exists("${OUTPUT_DIR}")
+  @mkdir "${OUTPUT_DIR}"
+@endif
+
+# Launch browser
+@echo "Launching browser..."
+@set SESSION_ID = "naver_map_session"
+
+oa plugin exec webauto browser-launch \
+  --headless false \
+  --session-id "${SESSION_ID}"
+
+@echo "✅ Browser launched"
+
+@try
+  # Navigate to Naver Map
+  @echo "Navigating to Naver Map..."
+  oa plugin exec webauto page-navigate \
+    --session-id "${SESSION_ID}" \
+    --page-url "https://map.naver.com/"
+
+  # Wait for search box
+  @echo "Waiting for search box..."
+  oa plugin exec webauto element-wait \
+    --session-id "${SESSION_ID}" \
+    --element-selector "input.input_search" \
+    --wait-for visible \
+    --timeout 5000
+
+  # Enter search query
+  @echo "Searching for: ${SEARCH_QUERY}"
+  oa plugin exec webauto element-type \
+    --session-id "${SESSION_ID}" \
+    --element-selector "input.input_search" \
+    --element-text "${SEARCH_QUERY}" \
+    --delay 100
+
+  # Click search button
+  oa plugin exec webauto element-click \
+    --session-id "${SESSION_ID}" \
+    --element-selector "button.btn_search"
+
+  # Wait for search results
+  @echo "Waiting for search results..."
+  @sleep 3000
+
+  oa plugin exec webauto element-wait \
+    --session-id "${SESSION_ID}" \
+    --element-selector ".place_bluelink" \
+    --wait-for visible \
+    --timeout 10000
+
+  # Extract place information
+  @echo "Extracting place data..."
+  oa plugin exec webauto element-query-all \
+    --session-id "${SESSION_ID}" \
+    --element-selector ".place_bluelink" \
+    --get-text \
+    --get-attribute href \
+    --limit "${MAX_RESULTS}"
+
+  # Take screenshot
+  @echo "Capturing screenshot..."
+  oa plugin exec webauto page-screenshot \
+    --session-id "${SESSION_ID}" \
+    --image-path "${OUTPUT_DIR}/map_search_results.png"
+
+  @echo "✅ Search completed successfully"
+  @echo "   Results: ${MAX_RESULTS} places"
+  @echo "   Screenshot: ${OUTPUT_DIR}/map_search_results.png"
+
+@catch
+  @echo "❌ Search failed"
+  @echo "   Possible causes:"
+  @echo "   - Anti-bot protection triggered"
+  @echo "   - Network timeout"
+  @echo "   - UI structure changed"
+
+  # Take error screenshot for debugging
+  oa plugin exec webauto page-screenshot \
+    --session-id "${SESSION_ID}" \
+    --image-path "${OUTPUT_DIR}/error_screenshot.png"
+
+  @echo "   Error screenshot saved: ${OUTPUT_DIR}/error_screenshot.png"
+@endtry
+
+# Cleanup
+@finally
+  @echo "Closing browser..."
+  oa plugin exec webauto browser-close --session-id "${SESSION_ID}"
+@endtry
+
+@echo "=== Map Search Automation Completed ==="

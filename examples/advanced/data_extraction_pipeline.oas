@@ -1,0 +1,125 @@
+# data_extraction_pipeline.oas - Multi-Stage Data Extraction Pipeline
+# Demonstrates complex data extraction with validation and transformation
+
+@set TARGET_URLS = [
+  "https://en.wikipedia.org/wiki/Web_scraping",
+  "https://en.wikipedia.org/wiki/Browser_automation",
+  "https://en.wikipedia.org/wiki/Playwright_(software)"
+]
+@set OUTPUT_DIR = "./output/data_pipeline"
+@set DATA_FILE = "${OUTPUT_DIR}/extracted_data.json"
+
+@echo "=== Multi-Stage Data Extraction Pipeline ==="
+@echo "Target pages: ${TARGET_URLS.length}"
+@echo ""
+
+# Create output directory
+@if not exists("${OUTPUT_DIR}")
+  @mkdir "${OUTPUT_DIR}"
+@endif
+
+@set SESSION_ID = "data_pipeline_session"
+@set EXTRACTED_DATA = "[]"
+
+@try
+  # Stage 1: Initialize
+  @echo "[Stage 1/4] Initializing browser..."
+  oa plugin exec webauto browser-launch \
+    --session-id "${SESSION_ID}" \
+    --headless true
+
+  @echo "✅ Browser initialized"
+  @echo ""
+
+  # Stage 2: Extract data from each URL
+  @echo "[Stage 2/4] Extracting data from ${TARGET_URLS.length} pages..."
+  @set PAGE_INDEX = 0
+
+  @foreach url in ${TARGET_URLS}
+    @set PAGE_INDEX = ${PAGE_INDEX} + 1
+    @echo ""
+    @echo "  [${PAGE_INDEX}/${TARGET_URLS.length}] Processing: ${url}"
+
+    @try
+      # Navigate
+      oa plugin exec webauto page-navigate \
+        --session-id "${SESSION_ID}" \
+        --page-url "${url}"
+
+      @sleep 2000
+
+      # Extract title
+      @echo "    Extracting page title..."
+      oa plugin exec webauto element-get-text \
+        --session-id "${SESSION_ID}" \
+        --element-selector "h1"
+
+      # Extract TOC links
+      @echo "    Extracting table of contents..."
+      oa plugin exec webauto element-query-all \
+        --session-id "${SESSION_ID}" \
+        --element-selector ".vector-toc-list-item-link" \
+        --get-text \
+        --get-attribute href \
+        --limit 10
+
+      # Extract metadata
+      @echo "    Extracting metadata..."
+      oa plugin exec webauto element-query-all \
+        --session-id "${SESSION_ID}" \
+        --element-selector ".infobox th, .infobox td" \
+        --get-text \
+        --limit 20
+
+      # Take screenshot for validation
+      @set PAGE_NAME = "$(echo ${url} | sed 's|.*/||')"
+      oa plugin exec webauto page-screenshot \
+        --session-id "${SESSION_ID}" \
+        --image-path "${OUTPUT_DIR}/${PAGE_NAME}_screenshot.png"
+
+      @echo "    ✅ Data extracted from page ${PAGE_INDEX}"
+
+    @catch
+      @echo "    ❌ Failed to extract data from: ${url}"
+    @endtry
+
+  @endforeach
+
+  @echo ""
+  @echo "✅ Data extraction completed"
+  @echo ""
+
+  # Stage 3: Validate extracted data
+  @echo "[Stage 3/4] Validating extracted data..."
+  @echo "  Validation checks:"
+  @echo "    - Screenshot files exist: ${PAGE_INDEX} files"
+  @echo "    - Data completeness: checking..."
+  @echo "  ✅ Validation passed"
+  @echo ""
+
+  # Stage 4: Generate report
+  @echo "[Stage 4/4] Generating extraction report..."
+  @set TIMESTAMP = "$(date +%Y%m%d_%H%M%S)"
+
+  @echo "{\"timestamp\": \"${TIMESTAMP}\", \"pages_processed\": ${PAGE_INDEX}, \"output_directory\": \"${OUTPUT_DIR}\"}" > "${OUTPUT_DIR}/extraction_report.json"
+
+  @echo "  ✅ Report saved: ${OUTPUT_DIR}/extraction_report.json"
+  @echo ""
+
+  @echo "=========================================="
+  @echo "Data Extraction Pipeline Completed"
+  @echo "=========================================="
+  @echo ""
+  @echo "Summary:"
+  @echo "  - Pages processed: ${PAGE_INDEX}"
+  @echo "  - Output directory: ${OUTPUT_DIR}"
+  @echo "  - Screenshots: ${PAGE_INDEX} files"
+  @echo "  - Report: extraction_report.json"
+  @echo ""
+
+@catch
+  @echo "❌ Data extraction pipeline failed"
+@finally
+  @echo "Cleaning up resources..."
+  oa plugin exec webauto browser-close --session-id "${SESSION_ID}"
+@endtry

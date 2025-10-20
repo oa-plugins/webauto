@@ -1,0 +1,140 @@
+# performance_monitoring.oas - Web Performance Monitoring and Reporting
+# Monitors page load times, resource sizes, and generates performance reports
+
+@set TARGET_URLS = [
+  "https://example.com",
+  "https://playwright.dev",
+  "https://github.com"
+]
+@set OUTPUT_DIR = "./output/performance"
+@set PERFORMANCE_THRESHOLD_MS = 3000
+
+@echo "=== Web Performance Monitoring ==="
+@echo "Monitoring ${TARGET_URLS.length} pages"
+@echo "Performance threshold: ${PERFORMANCE_THRESHOLD_MS}ms"
+@echo ""
+
+# Create output directory
+@if not exists("${OUTPUT_DIR}")
+  @mkdir "${OUTPUT_DIR}"
+@endif
+
+@set SESSION_ID = "performance_monitor_session"
+@set TIMESTAMP = "$(date +%Y%m%d_%H%M%S)"
+
+@try
+  # Launch browser
+  @echo "Launching browser..."
+  oa plugin exec webauto browser-launch \
+    --session-id "${SESSION_ID}" \
+    --headless true
+
+  @echo "✅ Browser launched"
+  @echo ""
+
+  # Monitor each page
+  @set PAGE_INDEX = 0
+  @set SLOW_PAGES = 0
+  @set FAST_PAGES = 0
+
+  @foreach url in ${TARGET_URLS}
+    @set PAGE_INDEX = ${PAGE_INDEX} + 1
+    @echo "[${PAGE_INDEX}/${TARGET_URLS.length}] Monitoring: ${url}"
+
+    @try
+      # Record start time
+      @set START_TIME = "$(date +%s%3N)"
+
+      # Navigate to page
+      oa plugin exec webauto page-navigate \
+        --session-id "${SESSION_ID}" \
+        --page-url "${url}"
+
+      # Wait for page load
+      oa plugin exec webauto element-wait \
+        --session-id "${SESSION_ID}" \
+        --element-selector "body" \
+        --wait-for visible \
+        --timeout 10000
+
+      # Record end time
+      @set END_TIME = "$(date +%s%3N)"
+      @set LOAD_TIME = ${END_TIME} - ${START_TIME}
+
+      @echo "  Load time: ${LOAD_TIME}ms"
+
+      # Check against threshold
+      @if ${LOAD_TIME} > ${PERFORMANCE_THRESHOLD_MS}
+        @echo "  ⚠️  SLOW: Exceeds ${PERFORMANCE_THRESHOLD_MS}ms threshold"
+        @set SLOW_PAGES = ${SLOW_PAGES} + 1
+      @else
+        @echo "  ✅ FAST: Within threshold"
+        @set FAST_PAGES = ${FAST_PAGES} + 1
+      @endif
+
+      # Capture screenshot
+      @set PAGE_NAME = "$(echo ${url} | sed 's|https://||' | sed 's|http://||' | sed 's|/|_|g')"
+      oa plugin exec webauto page-screenshot \
+        --session-id "${SESSION_ID}" \
+        --image-path "${OUTPUT_DIR}/${PAGE_NAME}_perf_${LOAD_TIME}ms.png"
+
+      # Save as PDF for detailed analysis
+      oa plugin exec webauto page-pdf \
+        --session-id "${SESSION_ID}" \
+        --pdf-path "${OUTPUT_DIR}/${PAGE_NAME}_perf.pdf"
+
+      @echo "  Screenshot: ${PAGE_NAME}_perf_${LOAD_TIME}ms.png"
+
+    @catch
+      @echo "  ❌ Failed to monitor ${url}"
+    @endtry
+
+    @echo ""
+  @endforeach
+
+  # Generate performance report
+  @echo "Generating performance report..."
+
+  @set REPORT_FILE = "${OUTPUT_DIR}/performance_report_${TIMESTAMP}.json"
+  @echo "{
+  \"timestamp\": \"${TIMESTAMP}\",
+  \"total_pages\": ${TARGET_URLS.length},
+  \"fast_pages\": ${FAST_PAGES},
+  \"slow_pages\": ${SLOW_PAGES},
+  \"threshold_ms\": ${PERFORMANCE_THRESHOLD_MS},
+  \"pages_monitored\": ${PAGE_INDEX}
+}" > "${REPORT_FILE}"
+
+  @echo "✅ Report saved: ${REPORT_FILE}"
+  @echo ""
+
+  # Calculate performance score
+  @set PERF_SCORE = (${FAST_PAGES} * 100) / ${TARGET_URLS.length}
+
+  @echo "=========================================="
+  @echo "Performance Monitoring Summary"
+  @echo "=========================================="
+  @echo ""
+  @echo "Pages monitored: ${PAGE_INDEX}"
+  @echo "Fast pages: ${FAST_PAGES} (≤${PERFORMANCE_THRESHOLD_MS}ms)"
+  @echo "Slow pages: ${SLOW_PAGES} (>${PERFORMANCE_THRESHOLD_MS}ms)"
+  @echo "Performance score: ${PERF_SCORE}%"
+  @echo ""
+  @echo "Results saved to: ${OUTPUT_DIR}/"
+  @echo ""
+
+  # Performance recommendations
+  @if ${SLOW_PAGES} > 0
+    @echo "⚠️  Performance Recommendations:"
+    @echo "   - ${SLOW_PAGES} page(s) exceed performance threshold"
+    @echo "   - Review PDF reports for detailed analysis"
+    @echo "   - Consider optimization strategies"
+    @echo ""
+  @endif
+
+@catch
+  @echo "❌ Performance monitoring failed"
+@finally
+  @echo "Closing browser..."
+  oa plugin exec webauto browser-close --session-id "${SESSION_ID}"
+@endtry

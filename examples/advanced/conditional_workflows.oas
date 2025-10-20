@@ -1,0 +1,187 @@
+# conditional_workflows.oas - Dynamic Workflow Execution Based on Conditions
+# Demonstrates conditional logic for adaptive automation workflows
+
+@set TARGET_URL = "https://en.wikipedia.org/wiki/Web_automation"
+@set OUTPUT_DIR = "./output/conditional"
+@set ENABLE_PDF = true
+@set ENABLE_DETAILED_EXTRACTION = true
+@set ENABLE_VALIDATION = true
+
+@echo "=== Conditional Workflows Demo ==="
+@echo "Target: ${TARGET_URL}"
+@echo "Configuration:"
+@echo "  - PDF export: ${ENABLE_PDF}"
+@echo "  - Detailed extraction: ${ENABLE_DETAILED_EXTRACTION}"
+@echo "  - Validation: ${ENABLE_VALIDATION}"
+@echo ""
+
+# Create output directory
+@if not exists("${OUTPUT_DIR}")
+  @mkdir "${OUTPUT_DIR}"
+@endif
+
+@set SESSION_ID = "conditional_workflow_session"
+@set TIMESTAMP = "$(date +%Y%m%d_%H%M%S)"
+
+@try
+  # Initialize
+  @echo "Initializing browser..."
+  oa plugin exec webauto browser-launch \
+    --session-id "${SESSION_ID}" \
+    --headless true
+
+  @echo "✅ Browser launched"
+  @echo ""
+
+  # Navigate
+  @echo "Navigating to target page..."
+  oa plugin exec webauto page-navigate \
+    --session-id "${SESSION_ID}" \
+    --page-url "${TARGET_URL}"
+
+  @sleep 2000
+  @echo "✅ Page loaded"
+  @echo ""
+
+  # Conditional workflow 1: PDF export
+  @if ${ENABLE_PDF} == true
+    @echo "[ PDF Export Enabled ]"
+    @echo "  Generating PDF..."
+
+    oa plugin exec webauto page-pdf \
+      --session-id "${SESSION_ID}" \
+      --pdf-path "${OUTPUT_DIR}/page_${TIMESTAMP}.pdf"
+
+    @echo "  ✅ PDF saved: page_${TIMESTAMP}.pdf"
+    @echo ""
+  @else
+    @echo "[ PDF Export Disabled ]"
+    @echo "  Skipping PDF generation"
+    @echo ""
+  @endif
+
+  # Conditional workflow 2: Detailed extraction
+  @if ${ENABLE_DETAILED_EXTRACTION} == true
+    @echo "[ Detailed Extraction Enabled ]"
+
+    # Extract main heading
+    @echo "  Extracting main heading..."
+    oa plugin exec webauto element-get-text \
+      --session-id "${SESSION_ID}" \
+      --element-selector "h1"
+
+    # Extract all section headings
+    @echo "  Extracting section headings..."
+    oa plugin exec webauto element-query-all \
+      --session-id "${SESSION_ID}" \
+      --element-selector "h2" \
+      --get-text \
+      --limit 10
+
+    # Extract all links
+    @echo "  Extracting links..."
+    oa plugin exec webauto element-query-all \
+      --session-id "${SESSION_ID}" \
+      --element-selector "a[href^='http']" \
+      --get-text \
+      --get-attribute href \
+      --limit 20
+
+    @echo "  ✅ Detailed extraction completed"
+    @echo ""
+  @else
+    @echo "[ Detailed Extraction Disabled ]"
+    @echo "  Performing basic extraction only..."
+
+    # Basic extraction
+    oa plugin exec webauto element-get-text \
+      --session-id "${SESSION_ID}" \
+      --element-selector "h1"
+
+    @echo "  ✅ Basic extraction completed"
+    @echo ""
+  @endif
+
+  # Conditional workflow 3: Validation
+  @if ${ENABLE_VALIDATION} == true
+    @echo "[ Validation Enabled ]"
+    @set VALIDATION_PASSED = true
+
+    # Validate page title exists
+    @echo "  Validating page title..."
+    @try
+      oa plugin exec webauto element-wait \
+        --session-id "${SESSION_ID}" \
+        --element-selector "h1" \
+        --wait-for visible \
+        --timeout 2000
+
+      @echo "    ✅ Title validation passed"
+    @catch
+      @echo "    ❌ Title validation failed"
+      @set VALIDATION_PASSED = false
+    @endtry
+
+    # Validate content exists
+    @echo "  Validating content..."
+    @try
+      oa plugin exec webauto element-wait \
+        --session-id "${SESSION_ID}" \
+        --element-selector "#content" \
+        --wait-for visible \
+        --timeout 2000
+
+      @echo "    ✅ Content validation passed"
+    @catch
+      @echo "    ❌ Content validation failed"
+      @set VALIDATION_PASSED = false
+    @endtry
+
+    # Validation summary
+    @if ${VALIDATION_PASSED} == true
+      @echo "  ✅ All validations passed"
+    @else
+      @echo "  ⚠️  Some validations failed"
+    @endif
+    @echo ""
+  @else
+    @echo "[ Validation Disabled ]"
+    @echo "  Skipping validation checks"
+    @echo ""
+  @endif
+
+  # Take screenshot
+  @echo "Capturing final screenshot..."
+  oa plugin exec webauto page-screenshot \
+    --session-id "${SESSION_ID}" \
+    --image-path "${OUTPUT_DIR}/screenshot_${TIMESTAMP}.png"
+
+  @echo "✅ Screenshot: screenshot_${TIMESTAMP}.png"
+  @echo ""
+
+  @echo "=========================================="
+  @echo "Conditional Workflow Completed"
+  @echo "=========================================="
+  @echo ""
+  @echo "Executed workflows:"
+  @if ${ENABLE_PDF} == true
+    @echo "  ✅ PDF export"
+  @endif
+  @if ${ENABLE_DETAILED_EXTRACTION} == true
+    @echo "  ✅ Detailed extraction"
+  @else
+    @echo "  ✅ Basic extraction"
+  @endif
+  @if ${ENABLE_VALIDATION} == true
+    @echo "  ✅ Validation"
+  @endif
+  @echo ""
+  @echo "Output directory: ${OUTPUT_DIR}"
+  @echo ""
+
+@catch
+  @echo "❌ Conditional workflow failed"
+@finally
+  @echo "Cleaning up..."
+  oa plugin exec webauto browser-close --session-id "${SESSION_ID}"
+@endtry

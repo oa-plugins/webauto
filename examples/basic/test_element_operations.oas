@@ -1,0 +1,114 @@
+# test_element_operations.oas - Element Operation Testing Suite
+# Tests element-click, element-type, element-wait, element-get-text, element-get-attribute
+
+@set TEST_URL = "https://en.wikipedia.org/wiki/Playwright_(software)"
+@set SESSION_ID = "element_test_session"
+
+@echo "=========================================="
+@echo "Element Operations Test Suite"
+@echo "=========================================="
+@echo ""
+
+@try
+  # Launch browser
+  @echo "[Test Setup] Launching browser..."
+  oa plugin exec webauto browser-launch \
+    --session-id "${SESSION_ID}" \
+    --headless true
+
+  @echo "✅ Browser launched"
+  @echo ""
+
+  # Navigate to test page
+  @echo "[Test Setup] Navigating to test page..."
+  oa plugin exec webauto page-navigate \
+    --session-id "${SESSION_ID}" \
+    --page-url "${TEST_URL}"
+
+  @sleep 2000
+  @echo "✅ Page loaded"
+  @echo ""
+
+  # Test 1: element-wait
+  @echo "[Test 1] Testing element-wait..."
+  @try
+    oa plugin exec webauto element-wait \
+      --session-id "${SESSION_ID}" \
+      --element-selector "h1" \
+      --wait-for visible \
+      --timeout 5000
+
+    @echo "  ✅ element-wait successful"
+  @catch
+    @echo "  ❌ element-wait failed"
+  @endtry
+  @echo ""
+
+  # Test 2: element-get-text
+  @echo "[Test 2] Testing element-get-text..."
+  @try
+    oa plugin exec webauto element-get-text \
+      --session-id "${SESSION_ID}" \
+      --element-selector "h1"
+
+    @echo "  ✅ element-get-text successful"
+  @catch
+    @echo "  ❌ element-get-text failed"
+  @endtry
+  @echo ""
+
+  # Test 3: element-get-attribute
+  @echo "[Test 3] Testing element-get-attribute..."
+  @try
+    oa plugin exec webauto element-get-attribute \
+      --session-id "${SESSION_ID}" \
+      --element-selector "a.external" \
+      --attribute-name href
+
+    @echo "  ✅ element-get-attribute successful"
+  @catch
+    @echo "  ❌ element-get-attribute failed"
+  @endtry
+  @echo ""
+
+  # Test 4: element-query-all
+  @echo "[Test 4] Testing element-query-all..."
+  @try
+    oa plugin exec webauto element-query-all \
+      --session-id "${SESSION_ID}" \
+      --element-selector ".vector-toc-list-item-link" \
+      --get-text \
+      --limit 5
+
+    @echo "  ✅ element-query-all successful"
+  @catch
+    @echo "  ❌ element-query-all failed"
+  @endtry
+  @echo ""
+
+  # Test 5: element-click (navigation link)
+  @echo "[Test 5] Testing element-click..."
+  @try
+    oa plugin exec webauto element-click \
+      --session-id "${SESSION_ID}" \
+      --element-selector ".vector-toc-list-item-link"
+
+    @sleep 1000
+    @echo "  ✅ element-click successful"
+  @catch
+    @echo "  ❌ element-click failed"
+  @endtry
+  @echo ""
+
+  @echo "=========================================="
+  @echo "Test Summary"
+  @echo "=========================================="
+  @echo "All element operation tests completed!"
+  @echo ""
+
+@catch
+  @echo "❌ Test suite failed"
+@finally
+  @echo "Cleaning up..."
+  oa plugin exec webauto browser-close --session-id "${SESSION_ID}"
+@endtry

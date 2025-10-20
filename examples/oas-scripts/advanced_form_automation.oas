@@ -1,0 +1,107 @@
+# advanced_form_automation.oas - Advanced form filling with error handling
+# Demonstrates robust form automation with retry logic
+
+@set FORM_URL = "https://example.com/contact"
+@set OUTPUT_DIR = "./output/forms"
+@set MAX_RETRIES = 3
+
+@echo "=== Advanced Form Automation ==="
+
+# Create output directory
+@if not exists("${OUTPUT_DIR}")
+  @mkdir "${OUTPUT_DIR}"
+@endif
+
+# Form data
+@set FORM_NAME = "John Doe"
+@set FORM_EMAIL = "john.doe@example.com"
+@set FORM_MESSAGE = "This is an automated test message"
+
+# Launch browser
+@echo "Launching browser..."
+@set SESSION_ID = "form_session"
+
+oa plugin exec webauto browser-launch \
+  --headless false \
+  --session-id "${SESSION_ID}"
+
+@echo "✅ Browser launched"
+
+# Retry loop
+@set ATTEMPT = 0
+@set SUCCESS = false
+
+@while ${ATTEMPT} < ${MAX_RETRIES} and not ${SUCCESS}
+  @set ATTEMPT = ${ATTEMPT} + 1
+  @echo ""
+  @echo "Attempt ${ATTEMPT} of ${MAX_RETRIES}..."
+
+  @try
+    # Navigate to form page
+    @echo "Navigating to form..."
+    oa plugin exec webauto page-navigate \
+      --session-id "${SESSION_ID}" \
+      --page-url "${FORM_URL}"
+
+    # Wait for form to be ready
+    @echo "Waiting for form..."
+    oa plugin exec webauto element-wait \
+      --session-id "${SESSION_ID}" \
+      --element-selector "form" \
+      --wait-for visible \
+      --timeout 5000
+
+    # Fill form using form-fill command
+    @echo "Filling form fields..."
+    oa plugin exec webauto form-fill \
+      --session-id "${SESSION_ID}" \
+      --field-selector "input[name='name']=${FORM_NAME}" \
+      --field-selector "input[name='email']=${FORM_EMAIL}" \
+      --field-selector "textarea[name='message']=${FORM_MESSAGE}" \
+      --submit-selector "button[type='submit']"
+
+    # Wait for success confirmation
+    @sleep 2000
+
+    # Take screenshot of result
+    oa plugin exec webauto page-screenshot \
+      --session-id "${SESSION_ID}" \
+      --image-path "${OUTPUT_DIR}/form_submitted.png"
+
+    @set SUCCESS = true
+    @echo "✅ Form submitted successfully!"
+
+  @catch
+    @echo "❌ Attempt ${ATTEMPT} failed"
+
+    # Take error screenshot
+    oa plugin exec webauto page-screenshot \
+      --session-id "${SESSION_ID}" \
+      --image-path "${OUTPUT_DIR}/error_attempt_${ATTEMPT}.png"
+
+    @if ${ATTEMPT} < ${MAX_RETRIES}
+      @echo "   Retrying in 5 seconds..."
+      @sleep 5000
+    @else
+      @echo "   Max retries reached. Giving up."
+    @endif
+  @endtry
+
+@endwhile
+
+# Final status
+@if ${SUCCESS}
+  @echo ""
+  @echo "=== Form Automation Successful ==="
+  @echo "Screenshot: ${OUTPUT_DIR}/form_submitted.png"
+@else
+  @echo ""
+  @echo "=== Form Automation Failed ==="
+  @echo "Error screenshots: ${OUTPUT_DIR}/error_attempt_*.png"
+@endif
+
+# Cleanup
+@finally
+  @echo "Closing browser..."
+  oa plugin exec webauto browser-close --session-id "${SESSION_ID}"
+@endtry

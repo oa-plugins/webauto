@@ -1,0 +1,174 @@
+# accessibility_audit.oas - Website Accessibility Audit
+# Checks basic accessibility compliance (ARIA labels, alt text, semantic HTML)
+
+@set TARGET_URL = "https://example.com"
+@set OUTPUT_DIR = "./output/accessibility"
+
+@echo "=== Website Accessibility Audit ==="
+@echo "Target: ${TARGET_URL}"
+@echo ""
+
+# Create output directory
+@if not exists("${OUTPUT_DIR}")
+  @mkdir "${OUTPUT_DIR}"
+@endif
+
+@set SESSION_ID = "accessibility_audit_session"
+@set TIMESTAMP = "$(date +%Y%m%d_%H%M%S)"
+@set ISSUES_FOUND = 0
+
+@try
+  # Launch browser
+  @echo "Launching browser..."
+  oa plugin exec webauto browser-launch \
+    --session-id "${SESSION_ID}" \
+    --headless true
+
+  @echo "✅ Browser launched"
+  @echo ""
+
+  # Navigate to target
+  @echo "Navigating to: ${TARGET_URL}"
+  oa plugin exec webauto page-navigate \
+    --session-id "${SESSION_ID}" \
+    --page-url "${TARGET_URL}"
+
+  @sleep 2000
+  @echo "✅ Page loaded"
+  @echo ""
+
+  # Audit 1: Check for images without alt text
+  @echo "[Audit 1] Checking images for alt text"
+  @echo "=========================================="
+
+  @echo "Querying all images..."
+  oa plugin exec webauto element-query-all \
+    --session-id "${SESSION_ID}" \
+    --element-selector "img" \
+    --get-attribute alt \
+    --get-attribute src
+
+  @echo "Review image alt attributes above"
+  @echo "✅ Image audit completed"
+  @echo ""
+
+  # Audit 2: Check for semantic HTML headings
+  @echo "[Audit 2] Checking semantic heading structure"
+  @echo "=========================================="
+
+  # Check h1 exists
+  @echo "Checking for h1..."
+  @try
+    oa plugin exec webauto element-wait \
+      --session-id "${SESSION_ID}" \
+      --element-selector "h1" \
+      --wait-for visible \
+      --timeout 2000
+
+    @echo "  ✅ h1 element found"
+  @catch
+    @echo "  ❌ h1 element missing (WCAG violation)"
+    @set ISSUES_FOUND = ${ISSUES_FOUND} + 1
+  @endtry
+
+  # Extract all headings for hierarchy check
+  @echo "Extracting heading hierarchy..."
+  oa plugin exec webauto element-query-all \
+    --session-id "${SESSION_ID}" \
+    --element-selector "h1, h2, h3, h4, h5, h6" \
+    --get-text
+
+  @echo "✅ Heading hierarchy extracted"
+  @echo ""
+
+  # Audit 3: Check for ARIA labels on interactive elements
+  @echo "[Audit 3] Checking ARIA labels"
+  @echo "=========================================="
+
+  @echo "Querying buttons for ARIA labels..."
+  oa plugin exec webauto element-query-all \
+    --session-id "${SESSION_ID}" \
+    --element-selector "button, a" \
+    --get-attribute aria-label \
+    --get-text \
+    --limit 20
+
+  @echo "Review ARIA labels above"
+  @echo "✅ ARIA label audit completed"
+  @echo ""
+
+  # Audit 4: Check for form labels
+  @echo "[Audit 4] Checking form labels"
+  @echo "=========================================="
+
+  @echo "Querying form inputs..."
+  oa plugin exec webauto element-query-all \
+    --session-id "${SESSION_ID}" \
+    --element-selector "input, textarea, select" \
+    --get-attribute id \
+    --get-attribute aria-label \
+    --limit 20
+
+  @echo "Review form input labels above"
+  @echo "✅ Form label audit completed"
+  @echo ""
+
+  # Audit 5: Check color contrast (via screenshot)
+  @echo "[Audit 5] Capturing page for manual color contrast check"
+  @echo "=========================================="
+
+  oa plugin exec webauto page-screenshot \
+    --session-id "${SESSION_ID}" \
+    --image-path "${OUTPUT_DIR}/accessibility_audit_${TIMESTAMP}.png"
+
+  @echo "  Screenshot saved for manual contrast check"
+  @echo "  Use external tools for automated contrast analysis"
+  @echo "✅ Screenshot captured"
+  @echo ""
+
+  # Generate audit report
+  @echo "Generating audit report..."
+  @set REPORT_FILE = "${OUTPUT_DIR}/audit_report_${TIMESTAMP}.json"
+
+  @echo "{
+  \"timestamp\": \"${TIMESTAMP}\",
+  \"target_url\": \"${TARGET_URL}\",
+  \"issues_found\": ${ISSUES_FOUND},
+  \"audits_performed\": [
+    \"Image alt text check\",
+    \"Semantic heading structure\",
+    \"ARIA labels on interactive elements\",
+    \"Form labels\",
+    \"Color contrast (manual review required)\"
+  ]
+}" > "${REPORT_FILE}"
+
+  @echo "✅ Audit report saved: ${REPORT_FILE}"
+  @echo ""
+
+  @echo "=========================================="
+  @echo "Accessibility Audit Summary"
+  @echo "=========================================="
+  @echo ""
+  @echo "Target URL: ${TARGET_URL}"
+  @echo "Issues found: ${ISSUES_FOUND}"
+  @echo ""
+  @echo "Completed audits:"
+  @echo "  1. ✅ Image alt text check"
+  @echo "  2. ✅ Semantic heading structure"
+  @echo "  3. ✅ ARIA labels"
+  @echo "  4. ✅ Form labels"
+  @echo "  5. ✅ Screenshot for contrast check"
+  @echo ""
+  @echo "Next steps:"
+  @echo "  - Review audit report: ${REPORT_FILE}"
+  @echo "  - Manual contrast check: accessibility_audit_${TIMESTAMP}.png"
+  @echo "  - Use axe-core or WAVE for detailed analysis"
+  @echo ""
+
+@catch
+  @echo "❌ Accessibility audit failed"
+@finally
+  @echo "Closing browser..."
+  oa plugin exec webauto browser-close --session-id "${SESSION_ID}"
+@endtry
