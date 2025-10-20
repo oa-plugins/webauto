@@ -213,14 +213,18 @@ oa webauto browser-close --session-id ses_abcd1234
 
 ## Platform Support
 
-- Windows 10/11 (Chromium, Firefox)
-- macOS 11+ Intel/Apple Silicon (Chromium, Firefox, WebKit)
-- Ubuntu 20.04+ (Chromium, Firefox; WebKit limited)
+- Windows 10/11 (amd64) - Chromium, Firefox
+- macOS 11+ Intel (amd64) - Chromium, Firefox, WebKit
+- macOS 11+ Apple Silicon (arm64) - Chromium, Firefox, WebKit
+- Ubuntu 20.04+ (amd64, arm64) - Chromium, Firefox; WebKit limited
+
+**Detailed platform installation guide**: [docs/platform-guide.md](docs/platform-guide.md)
 
 Platform notes:
-- Windows default node path: `C:\Program Files\nodejs\node.exe`
-- macOS: `/usr/local/bin/node` or asdf shim
-- Linux: ensure `libnss3`, `libatk1.0-0`, `libatk-bridge2.0-0`
+- Node.js is automatically bootstrapped on first run (no manual installation required)
+- Windows: Cache at `%LOCALAPPDATA%\oa\webauto`
+- macOS/Linux: Cache at `~/.cache/oa/webauto`
+- Linux: System libraries required (`libnss3`, `libatk1.0-0`, `libatk-bridge2.0-0`, etc.)
 
 ## Roadmap Alignment
 

@@ -125,9 +125,11 @@ export MOUSE_MOVE_JITTER_PX=10
 
 ## 🌍 플랫폼 지원
 
-- ✅ **Windows** 10/11
+- ✅ **Windows** 10/11 (amd64)
 - ✅ **macOS** 11+ (Intel/Apple Silicon)
-- ✅ **Linux** Ubuntu 20.04+
+- ✅ **Linux** Ubuntu 20.04+ (amd64, arm64)
+
+**상세 설치 가이드**: [Platform Guide](docs/platform-guide.md)
 
 ## 📊 성능 목표
 
@@ -153,7 +155,10 @@ go tool cover -html=coverage.out
 
 ## 📚 문서
 
+- [플랫폼별 설치 가이드](docs/platform-guide.md)
 - [아키텍처 설계](ARCHITECTURE.md)
+- [구현 가이드](docs/implementation-guide.md)
+- [성능 가이드](docs/performance-guide.md)
 - [아이디어 제안서](https://github.com/oa-plugins/plugin-designer/blob/main/ideas/webauto-idea.md)
 - [API 문서](https://github.com/oa-plugins/plugin-designer/blob/main/designs/webauto-architecture.md)
 

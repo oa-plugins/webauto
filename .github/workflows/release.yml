@@ -18,34 +18,34 @@ jobs:
           - os: windows-latest
             goos: windows
             goarch: amd64
-            output: plugin-name.exe
-            archive: plugin-name-windows-amd64.zip
+            output: webauto.exe
+            archive: webauto-windows-amd64.zip
 
           # macOS builds
           - os: macos-latest
             goos: darwin
             goarch: amd64
-            output: plugin-name
-            archive: plugin-name-darwin-amd64.tar.gz
+            output: webauto
+            archive: webauto-darwin-amd64.tar.gz
 
           - os: macos-latest
             goos: darwin
             goarch: arm64
-            output: plugin-name
-            archive: plugin-name-darwin-arm64.tar.gz
+            output: webauto
+            archive: webauto-darwin-arm64.tar.gz
 
           # Linux builds
           - os: ubuntu-latest
             goos: linux
             goarch: amd64
-            output: plugin-name
-            archive: plugin-name-linux-amd64.tar.gz
+            output: webauto
+            archive: webauto-linux-amd64.tar.gz
 
           - os: ubuntu-latest
             goos: linux
             goarch: arm64
-            output: plugin-name
-            archive: plugin-name-linux-arm64.tar.gz
+            output: webauto
+            archive: webauto-linux-arm64.tar.gz
 
     steps:
       - name: Checkout code
@@ -54,7 +54,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version: '1.22'
 
       - name: Get version from tag
         id: get_version
@@ -68,7 +68,7 @@ jobs:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
         run: |
-          go build -o ${{ matrix.output }} ./cmd/plugin-name
+          go build -o ${{ matrix.output }} ./cmd/webauto
 
       - name: Create archive (Windows)
         if: matrix.goos == 'windows'
@@ -128,29 +128,43 @@ jobs:
       - name: Create Release Notes
         run: |
           cat > RELEASE_NOTES.md << 'EOF'
-          ## Plugin Name v${{ steps.get_version.outputs.VERSION }}
+          ## webauto v${{ steps.get_version.outputs.VERSION }}
+
+          Browser automation plugin for OA CLI with Playwright integration.
 
           ### Installation
 
           ```bash
           # Using OA CLI (recommended)
-          oa plugin install plugin-name
+          oa plugin install webauto
 
           # Manual installation
           # 1. Download the archive for your platform
-          # 2. Extract to your plugin directory
+          # 2. Extract the binary
           # 3. Verify SHA256 checksum
+          # 4. Run: oa plugin install ./webauto
           ```
 
           ### Platform Support
 
-          - ✅ Windows (amd64)
-          - ✅ macOS (amd64, arm64)
-          - ✅ Linux (amd64, arm64)
+          ✅ **Windows 10/11** (amd64)
+          ✅ **macOS 11+** (Intel & Apple Silicon)
+          ✅ **Linux Ubuntu 20.04+** (amd64, arm64)
 
-          ### Platform-Specific Commands
+          ### Quick Start
 
-          Different commands are available depending on your operating system. Run `plugin-name --help` to see available commands on your platform.
+          ```bash
+          # Launch browser (Node.js auto-bootstraps on first run)
+          oa webauto browser-launch --headless false
+
+          # Navigate to a page
+          oa webauto page-navigate --page-url "https://example.com"
+
+          # Take a screenshot
+          oa webauto page-screenshot --image-path screenshot.png
+          ```
+
+          For detailed platform-specific installation instructions, see the [Platform Guide](https://github.com/oa-plugins/webauto/blob/main/docs/platform-guide.md).
 
           ### Checksums
 
@@ -158,9 +172,10 @@ jobs:
 
           ### Documentation
 
-          - [README](https://github.com/oa-plugins/plugin-name#readme)
-          - [Plugin Registry](https://github.com/oa-plugins/registry)
-          - [Issue Tracker](https://github.com/oa-plugins/plugin-name/issues)
+          - [README](https://github.com/oa-plugins/webauto#readme)
+          - [Platform Guide](https://github.com/oa-plugins/webauto/blob/main/docs/platform-guide.md)
+          - [Architecture](https://github.com/oa-plugins/webauto/blob/main/ARCHITECTURE.md)
+          - [Issue Tracker](https://github.com/oa-plugins/webauto/issues)
           EOF
 
       - name: Create GitHub Release
