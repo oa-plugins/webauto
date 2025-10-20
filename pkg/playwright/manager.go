@@ -68,9 +68,9 @@ func (sm *SessionManager) flushSessionsToDisk() {
 	defer sm.mu.RUnlock()
 
 	for _, session := range sm.sessions {
-		if err := session.saveSession(); err != nil {
+		if err := session.session.saveSession(); err != nil {
 			// Log error but continue with other sessions
-			fmt.Printf("Warning: failed to flush session %s: %v\n", session.ID, err)
+			fmt.Printf("Warning: failed to flush session %s: %v\n", session.session.ID, err)
 		}
 	}
 }

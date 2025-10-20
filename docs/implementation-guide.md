@@ -321,7 +321,11 @@ webauto/
 │   │   ├── browser.go              # 브라우저 인스턴스 관리
 │   │   ├── page.go                 # 페이지 제어
 │   │   ├── element.go              # 요소 조작
-│   │   └── session.go              # 세션 관리
+│   │   ├── session.go              # 세션 관리 진입점
+│   │   ├── session_worker.go       # 세션별 TCP 워커
+│   │   ├── session_script.go       # Node 런너 스크립트 투영
+│   │   └── runner/
+│   │       └── session-server.js   # Playwright 런너 (Node.js)
 │   ├── antibot/
 │   │   ├── stealth.go              # Stealth mode 설정
 │   │   ├── fingerprint.go          # Fingerprint 우회
@@ -346,6 +350,8 @@ webauto/
 ├── ARCHITECTURE.md
 └── IMPLEMENTATION_GUIDE.md         # 이 문서
 ```
+
+> 참고: 세션 런타임은 `session.go` + `session_worker.go` 조합으로 관리되며, Node 런너(`runner/session-server.js`)는 `session_script.go` 를 통해 캐시 디렉터리로 투영됩니다. 브라우저 타입과 헤드리스 설정은 내부적으로 `WEBAUTO_RUNNER_CONFIG` 환경 변수(JSON 문자열)로 전달됩니다.
 
 ---
 

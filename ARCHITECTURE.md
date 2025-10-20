@@ -1725,125 +1725,34 @@ type HealResult struct {
 
 ---
 
-#### session.go (`pkg/playwright/session.go`)
+#### Session Runtime (`pkg/playwright/session.go`, `session_worker.go`, `session_script.go`)
 
-**목적**: 브라우저 세션 관리
+- `SessionManager` 는 `map[string]*managedSession` 을 보유하며, 각 항목은 세션 메타데이터(`*Session`)와 해당 세션의 TCP 워커(`*sessionWorker`)를 묶어 관리합니다.
+- `sessionWorker` 는 Playwright 런너와의 TCP 연결을 재사용하면서 채널 기반으로 명령을 직렬화합니다. 컨텍스트 기반 데드라인을 존중하고, 연결 오류가 발생하면 워커를 종료해 상위 레이어가 재연결을 시도할 수 있게 합니다.
+- `session_script.go` 는 런타임에 임베드된 Node.js 스크립트를 캐시 디렉터리에 투영하고, `SessionManager.Create` 가 이를 이용해 런너를 실행할 수 있도록 보장합니다.
 
-```go
-package playwright
+**세션 생성 플로우**
 
-import (
-	"context"
-	"fmt"
-	"sync"
-	"time"
+1. `ensureSessionRunnerScript()` 가 `pkg/playwright/runner/session-server.js` 를 `~/.cache/oa/webauto/runner/` 위치에 기록합니다.
+2. Go 측에서 `node <session-server.js>` 를 실행하면서 `WEBAUTO_RUNNER_CONFIG` 환경 변수에 브라우저 타입/헤드리스 여부를 JSON 으로 전달합니다.
+3. 런너가 첫 번째 stdout 줄로 세션 메타데이터(port, browser version 등)를 내보내면 이를 파싱해 `Session` 구조체를 초기화합니다.
+4. `newSessionWorker` 가 해당 포트에 TCP 연결을 맺고, 고루틴에서 명령 큐를 처리하는 워커를 시작합니다.
 
-	"github.com/google/uuid"
-	"github.com/oa-plugins/webauto/pkg/config"
-)
+**명령 전송**
 
-type SessionManager struct {
-	cfg      *config.Config
-	sessions map[string]*Session
-	mu       sync.RWMutex
-}
+`SendCommand` 는 `getOrCreateManagedSession` 을 통해 워커를 확보한 후, 채널에 명령을 올리고 응답을 기다립니다. 워커는 단일 연결로 명령을 순차 처리하고, 응답 JSON 을 `ipc.NodeResponse` 로 역직렬화합니다.
 
-type Session struct {
-	ID          string
-	BrowserType string
-	Headless    bool
-	CreatedAt   time.Time
-	LastUsedAt  time.Time
-	Browser     interface{} // Playwright browser instance
-	Page        interface{} // Playwright page instance
-}
+**정리/타임아웃**
 
-func NewSessionManager(cfg *config.Config) *SessionManager {
-	return &SessionManager{
-		cfg:      cfg,
-		sessions: make(map[string]*Session),
-	}
-}
+- `Close` 또는 `CleanupExpired` 는 워커를 먼저 닫은 뒤 Node 프로세스를 종료하고 세션 파일을 삭제합니다.
+- 만료 검사(`SessionTimeoutSeconds`)는 `Session.LastUsedAt` 기준으로 수행되며, 워커 종료 및 파일 정리를 함께 처리합니다.
 
-func (sm *SessionManager) Create(ctx context.Context, browserType string, headless bool) (*Session, error) {
-	sm.mu.Lock()
-	defer sm.mu.Unlock()
+#### session-server.js (`pkg/playwright/runner/session-server.js`)
 
-	if len(sm.sessions) >= sm.cfg.SessionMaxCount {
-		return nil, fmt.Errorf("max sessions reached (%d)", sm.cfg.SessionMaxCount)
-	}
-
-	sessionID := uuid.New().String()
-	session := &Session{
-		ID:          sessionID,
-		BrowserType: browserType,
-		Headless:    headless,
-		CreatedAt:   time.Now(),
-		LastUsedAt:  time.Now(),
-	}
-
-	// Launch browser via Playwright
-	// (Implementation with actual Playwright library)
-
-	sm.sessions[sessionID] = session
-	return session, nil
-}
-
-func (sm *SessionManager) Get(sessionID string) (*Session, error) {
-	sm.mu.RLock()
-	defer sm.mu.RUnlock()
-
-	session, ok := sm.sessions[sessionID]
-	if !ok {
-		return nil, fmt.Errorf("session not found: %s", sessionID)
-	}
-
-	session.LastUsedAt = time.Now()
-	return session, nil
-}
-
-func (sm *SessionManager) Close(sessionID string) error {
-	sm.mu.Lock()
-	defer sm.mu.Unlock()
-
-	session, ok := sm.sessions[sessionID]
-	if !ok {
-		return fmt.Errorf("session not found: %s", sessionID)
-	}
-
-	// Close browser via Playwright
-	// (Implementation)
-
-	delete(sm.sessions, sessionID)
-	return nil
-}
-
-func (sm *SessionManager) List() []*Session {
-	sm.mu.RLock()
-	defer sm.mu.RUnlock()
-
-	sessions := make([]*Session, 0, len(sm.sessions))
-	for _, session := range sm.sessions {
-		sessions = append(sessions, session)
-	}
-	return sessions
-}
-
-func (sm *SessionManager) Cleanup() {
-	sm.mu.Lock()
-	defer sm.mu.Unlock()
-
-	timeout := time.Duration(sm.cfg.SessionTimeoutSeconds) * time.Second
-	now := time.Now()
-
-	for sessionID, session := range sm.sessions {
-		if now.Sub(session.LastUsedAt) > timeout {
-			// Close and delete expired session
-			delete(sm.sessions, sessionID)
-		}
-	}
-}
-```
+- Node.js Playwright 브리지로, Go와의 통신은 줄 구분 JSON(TCP)로 이루어집니다.
+- `WEBAUTO_RUNNER_CONFIG` 를 읽어 브라우저를 기동하고, 동일한 페이지 컨텍스트를 유지한 채 여러 명령을 처리합니다.
+- `navigate`, `click`, `screenshot`, `type`, `pdf`, `get-text`, `get-attribute`, `query-all`, `get-html`, `evaluate`, `wait`, `ping` 등의 명령을 지원하며, 결과를 JSON 으로 반환합니다.
+- SIGINT/SIGTERM 시 브라우저와 TCP 서버를 안전하게 종료하여 Go 쪽 자원 정리를 돕습니다.
 
 ---
 

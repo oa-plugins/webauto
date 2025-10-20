@@ -4,9 +4,9 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -26,11 +26,11 @@ type Session struct {
 	Headless    bool        `json:"headless"`
 	CreatedAt   time.Time   `json:"created_at"`
 	LastUsedAt  time.Time   `json:"last_used_at"`
-	PID         int         `json:"pid"`    // Process ID for reconnection
-	Port        int         `json:"port"`   // TCP port for IPC
-	Browser     interface{} `json:"-"`      // WebSocket endpoint (string) for browser reconnection
-	Page        interface{} `json:"-"`      // Page reference (for future use)
-	Process     interface{} `json:"-"`      // Node.js process reference (for cleanup)
+	PID         int         `json:"pid"`  // Process ID for reconnection
+	Port        int         `json:"port"` // TCP port for IPC
+	Browser     interface{} `json:"-"`    // WebSocket endpoint (string) for browser reconnection
+	Page        interface{} `json:"-"`    // Page reference (for future use)
+	Process     interface{} `json:"-"`    // Node.js process reference (for cleanup)
 }
 
 // sessionDir returns the directory path for session files
@@ -110,7 +110,7 @@ func deleteSession(sessionID string) error {
 // SessionManager manages browser sessions
 type SessionManager struct {
 	cfg      *config.Config
-	sessions map[string]*Session
+	sessions map[string]*managedSession
 	mu       sync.RWMutex
 }
 
@@ -118,7 +118,7 @@ type SessionManager struct {
 func NewSessionManager(cfg *config.Config) *SessionManager {
 	return &SessionManager{
 		cfg:      cfg,
-		sessions: make(map[string]*Session),
+		sessions: make(map[string]*managedSession),
 	}
 }
 
@@ -135,338 +135,34 @@ func (sm *SessionManager) Create(ctx context.Context, browserType string, headle
 	// Generate unique session ID
 	sessionID := "ses_" + uuid.New().String()[:8]
 
-	// Build Playwright launch script with TCP server for IPC
-	script := fmt.Sprintf(`
-		const { chromium, firefox, webkit } = require('playwright');
-		const net = require('net');
+	// Ensure session runner script is available and configure launch parameters
+	scriptPath, err := ensureSessionRunnerScript()
+	if err != nil {
+		return nil, err
+	}
 
-		(async () => {
-			try {
-				let browser;
-				let page;
-				const browserType = '%s';
-				const headless = %t;
+	runnerConfig := map[string]interface{}{
+		"browserType": browserType,
+		"headless":    headless,
+	}
 
-				// Select browser based on type
-				if (browserType === 'chromium') {
-					browser = await chromium.launch({ headless });
-				} else if (browserType === 'firefox') {
-					browser = await firefox.launch({ headless });
-				} else if (browserType === 'webkit') {
-					browser = await webkit.launch({ headless });
-				} else {
-					throw new Error('Invalid browser type: ' + browserType);
-				}
-
-				// Create a new page
-				page = await browser.newPage();
-
-				// Get browser info
-				const version = await browser.version();
-				const isConnected = browser.isConnected();
-
-				// Start TCP server for IPC
-				const server = net.createServer((socket) => {
-					let buffer = '';
-
-					socket.on('data', async (data) => {
-						buffer += data.toString();
-
-						// Process complete JSON commands (newline-delimited)
-						const lines = buffer.split('\n');
-						buffer = lines.pop(); // Keep incomplete line in buffer
-
-						for (const line of lines) {
-							if (!line.trim()) continue;
-
-							try {
-								const cmd = JSON.parse(line);
-
-								if (cmd.command === 'navigate') {
-									await page.goto(cmd.url, {
-										waitUntil: cmd.waitUntil || 'load',
-										timeout: cmd.timeout || 30000
-									});
-									socket.write(JSON.stringify({
-										success: true,
-										data: {
-											url: page.url(),
-											title: await page.title()
-										}
-									}) + '\n');
-								} else if (cmd.command === 'click') {
-									const element = page.locator(cmd.selector);
-									await element.click({
-										timeout: cmd.timeout || 30000
-									});
-									socket.write(JSON.stringify({
-										success: true,
-										data: {
-											selector: cmd.selector,
-											clicked: true
-										}
-									}) + '\n');
-								} else if (cmd.command === 'screenshot') {
-									const screenshot = await page.screenshot({
-										type: cmd.type || 'png',
-										fullPage: cmd.fullPage || false,
-										timeout: cmd.timeout || 30000
-									});
-									const base64 = screenshot.toString('base64');
-									socket.write(JSON.stringify({
-										success: true,
-										data: {
-											screenshot: base64,
-											type: cmd.type || 'png',
-											fullPage: cmd.fullPage || false
-										}
-									}) + '\n');
-								} else if (cmd.command === 'type') {
-									const element = page.locator(cmd.selector);
-									await element.fill(cmd.text, {
-										timeout: cmd.timeout || 30000
-									});
-									socket.write(JSON.stringify({
-										success: true,
-										data: {
-											selector: cmd.selector,
-											text: cmd.text,
-											typed: true
-										}
-									}) + '\n');
-								} else if (cmd.command === 'pdf') {
-									const pdf = await page.pdf({
-										format: cmd.format || 'A4',
-										landscape: cmd.landscape || false,
-										printBackground: cmd.printBackground !== undefined ? cmd.printBackground : true,
-										timeout: cmd.timeout || 30000
-									});
-									const base64 = pdf.toString('base64');
-									socket.write(JSON.stringify({
-										success: true,
-										data: {
-											pdf: base64,
-											format: cmd.format || 'A4',
-											landscape: cmd.landscape || false,
-											printBackground: cmd.printBackground !== undefined ? cmd.printBackground : true
-										}
-									}) + '\n');
-								} else if (cmd.command === 'get-text') {
-									const element = page.locator(cmd.selector);
-									const count = await element.count();
-
-									let text;
-									if (count === 0) {
-										throw new Error('Element not found: ' + cmd.selector);
-									} else if (count === 1) {
-										text = await element.textContent({ timeout: cmd.timeout || 30000 });
-									} else {
-										// Multiple elements: return array of texts
-										const texts = await element.allTextContents();
-										text = texts;
-									}
-
-									socket.write(JSON.stringify({
-										success: true,
-										data: {
-											selector: cmd.selector,
-											text: text,
-											element_count: count
-										}
-									}) + '\n');
-								} else if (cmd.command === 'get-attribute') {
-									const element = page.locator(cmd.selector);
-									const count = await element.count();
-
-									let attributeValue;
-									if (count === 0) {
-										throw new Error('Element not found: ' + cmd.selector);
-									} else if (count === 1) {
-										attributeValue = await element.getAttribute(cmd.attributeName, { timeout: cmd.timeout || 30000 });
-									} else {
-										// Multiple elements: return array of attribute values
-										const values = [];
-										for (let i = 0; i < count; i++) {
-											const value = await element.nth(i).getAttribute(cmd.attributeName);
-											values.push(value);
-										}
-										attributeValue = values;
-									}
-
-									socket.write(JSON.stringify({
-										success: true,
-										data: {
-											selector: cmd.selector,
-											attribute_name: cmd.attributeName,
-											attribute_value: attributeValue,
-											element_count: count
-										}
-									}) + '\n');
-								} else if (cmd.command === 'wait') {
-									const element = page.locator(cmd.selector);
-									const startTime = Date.now();
-
-									await element.waitFor({
-										state: cmd.waitCondition || 'visible',
-										timeout: cmd.timeout || 30000
-									});
-
-									const waitedMs = Date.now() - startTime;
-									const count = await element.count();
-
-									socket.write(JSON.stringify({
-										success: true,
-										data: {
-											selector: cmd.selector,
-											wait_condition: cmd.waitCondition || 'visible',
-											waited_ms: waitedMs,
-											element_found: count > 0
-										}
-									}) + '\n');
-								} else if (cmd.command === 'query-all') {
-									const locator = page.locator(cmd.selector);
-									const count = await locator.count();
-
-									if (count === 0) {
-										throw new Error('No elements found: ' + cmd.selector);
-									}
-
-									// Apply limit
-									const limit = cmd.limit > 0 ? Math.min(cmd.limit, count) : count;
-									const elements = [];
-									const shouldTrim = cmd.trim !== false; // Default to true
-
-									for (let i = 0; i < limit; i++) {
-										const el = locator.nth(i);
-										const item = { index: i };
-
-										// Get text if requested
-										if (cmd.getText) {
-											let text = await el.textContent({ timeout: cmd.timeout || 30000 });
-											// Trim whitespace if enabled (default: true)
-											if (shouldTrim && text) {
-												text = text.replace(/^\s+|\s+$/g, '').replace(/\s+/g, ' ');
-											}
-											item.text = text;
-										}
-
-										// Get attribute if requested
-										if (cmd.attributeName) {
-											item.attributes = {
-												[cmd.attributeName]: await el.getAttribute(cmd.attributeName)
-											};
-										}
-
-										elements.push(item);
-									}
-
-									socket.write(JSON.stringify({
-										success: true,
-										data: {
-											selector: cmd.selector,
-											element_count: count,
-											limit: limit,
-											elements: elements
-										}
-									}) + '\n');
-								} else if (cmd.command === 'get-html') {
-									let html;
-									if (cmd.selector) {
-										const element = page.locator(cmd.selector);
-										const count = await element.count();
-										if (count === 0) {
-											throw new Error('Element not found: ' + cmd.selector);
-										}
-										html = await element.innerHTML({ timeout: cmd.timeout || 30000 });
-									} else {
-										html = await page.content();
-									}
-									socket.write(JSON.stringify({
-										success: true,
-										data: {
-											html: html,
-											html_length: html.length,
-											selector: cmd.selector || null
-										}
-									}) + '\n');
-								} else if (cmd.command === 'evaluate') {
-									try {
-										const result = await page.evaluate(cmd.script);
-
-										// Detect result type
-										let resultType = typeof result;
-										if (result === null) {
-											resultType = 'null';
-										} else if (Array.isArray(result)) {
-											resultType = 'array';
-										}
-
-										socket.write(JSON.stringify({
-											success: true,
-											data: {
-												result: result,
-												result_type: resultType
-											}
-										}) + '\n');
-									} catch (evalError) {
-										socket.write(JSON.stringify({
-											success: false,
-											error: 'Script execution failed: ' + evalError.message
-										}) + '\n');
-									}
-								} else if (cmd.command === 'ping') {
-									socket.write(JSON.stringify({
-										success: true,
-										data: { status: 'alive' }
-									}) + '\n');
-								} else {
-									socket.write(JSON.stringify({
-										success: false,
-										error: 'Unknown command: ' + cmd.command
-									}) + '\n');
-								}
-							} catch (error) {
-								socket.write(JSON.stringify({
-									success: false,
-									error: error.message
-								}) + '\n');
-							}
-						}
-					});
-				});
-
-				// Listen on random available port
-				server.listen(0, '127.0.0.1', () => {
-					const port = server.address().port;
-
-					// Output session info to stdout (will be read by Go)
-					console.log(JSON.stringify({
-						success: true,
-						data: {
-							browserType: browserType,
-							headless: headless,
-							version: version,
-							isConnected: isConnected,
-							port: port
-						}
-					}));
-				});
-
-			} catch (error) {
-				console.log(JSON.stringify({
-					success: false,
-					error: error.message
-				}));
-				process.exit(1);
-			}
-		})();
-	`, browserType, headless)
+	configJSON, err := json.Marshal(runnerConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode runner config: %w", err)
+	}
 
 	// Create command to run Node.js script
-	cmd := exec.CommandContext(ctx, sm.cfg.PlaywrightNodePath, "-e", script)
+	cmd := exec.CommandContext(ctx, sm.cfg.PlaywrightNodePath, scriptPath)
 
 	// Set working directory to cache dir so Node.js can find playwright module
 	cmd.Dir = bootstrap.GetCacheDir()
+
+	// Set environment variables required by the Playwright runner
+	browsersDir := bootstrap.GetBrowsersDir()
+	cmd.Env = append(os.Environ(),
+		fmt.Sprintf("PLAYWRIGHT_BROWSERS_PATH=%s", browsersDir),
+		fmt.Sprintf("WEBAUTO_RUNNER_CONFIG=%s", string(configJSON)),
+	)
 
 	// Get stdout pipe for reading launch response
 	stdout, err := cmd.StdoutPipe()
@@ -565,9 +261,9 @@ func (sm *SessionManager) Create(ctx context.Context, browserType string, headle
 		CreatedAt:   time.Now(),
 		LastUsedAt:  time.Now(),
 		PID:         cmd.Process.Pid, // Store PID for process reconnection
-		Port:        int(port),        // Store TCP port for IPC
+		Port:        int(port),       // Store TCP port for IPC
 		Browser:     browserVersion,  // Store browser version for info
-		Process:     cmd,              // Store process for cleanup
+		Process:     cmd,             // Store process for cleanup
 	}
 
 	// Save session to file
@@ -576,8 +272,18 @@ func (sm *SessionManager) Create(ctx context.Context, browserType string, headle
 		return nil, fmt.Errorf("failed to save session: %w", err)
 	}
 
+	worker, err := newSessionWorker(ctx, session)
+	if err != nil {
+		cmd.Process.Kill()
+		_ = deleteSession(sessionID)
+		return nil, fmt.Errorf("failed to establish session worker: %w", err)
+	}
+
 	// Store session in memory
-	sm.sessions[sessionID] = session
+	sm.sessions[sessionID] = &managedSession{
+		session: session,
+		worker:  worker,
+	}
 
 	return session, nil
 }
@@ -585,28 +291,54 @@ func (sm *SessionManager) Create(ctx context.Context, browserType string, headle
 // Get retrieves a session by ID
 func (sm *SessionManager) Get(sessionID string) (*Session, error) {
 	sm.mu.RLock()
-	defer sm.mu.RUnlock()
+	managed, ok := sm.sessions[sessionID]
+	sm.mu.RUnlock()
 
-	session, ok := sm.sessions[sessionID]
-	if !ok {
-		return nil, fmt.Errorf("session not found: %s", sessionID)
+	if ok {
+		sm.mu.Lock()
+		managed.session.LastUsedAt = time.Now()
+		sm.mu.Unlock()
+		return managed.session, nil
 	}
 
-	// Update last used time
+	session, err := loadSession(sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	if existing, exists := sm.sessions[sessionID]; exists {
+		existing.session.LastUsedAt = time.Now()
+		return existing.session, nil
+	}
+
 	session.LastUsedAt = time.Now()
+	sm.sessions[sessionID] = &managedSession{session: session}
 
 	return session, nil
 }
 
 // Close closes a session and releases resources
 func (sm *SessionManager) Close(sessionID string) error {
-	sm.mu.Lock()
-	defer sm.mu.Unlock()
+	var managed *managedSession
 
-	// Try to load session from file if not in memory
-	session, ok := sm.sessions[sessionID]
-	if !ok {
-		// Load from file
+	sm.mu.Lock()
+	if ms, ok := sm.sessions[sessionID]; ok {
+		managed = ms
+		delete(sm.sessions, sessionID)
+	}
+	sm.mu.Unlock()
+
+	var session *Session
+
+	if managed != nil {
+		if managed.worker != nil {
+			managed.worker.Close()
+		}
+		session = managed.session
+	} else {
 		loadedSession, err := loadSession(sessionID)
 		if err != nil {
 			return err
@@ -618,14 +350,11 @@ func (sm *SessionManager) Close(sessionID string) error {
 	if session.Process != nil {
 		if cmd, ok := session.Process.(*exec.Cmd); ok {
 			if cmd.Process != nil {
-				// Kill the process (this will close the browser)
 				if err := cmd.Process.Kill(); err != nil {
-					// Log error but don't fail the close operation
 					fmt.Printf("Warning: failed to kill browser process: %v\n", err)
 				}
 			}
 		} else if proc, ok := session.Process.(*os.Process); ok {
-			// Process loaded from file
 			if err := proc.Kill(); err != nil {
 				fmt.Printf("Warning: failed to kill browser process: %v\n", err)
 			}
@@ -637,9 +366,6 @@ func (sm *SessionManager) Close(sessionID string) error {
 		fmt.Printf("Warning: failed to delete session file: %v\n", err)
 	}
 
-	// Remove session from memory map
-	delete(sm.sessions, sessionID)
-
 	return nil
 }
 
@@ -649,8 +375,8 @@ func (sm *SessionManager) List() []*Session {
 	defer sm.mu.RUnlock()
 
 	sessions := make([]*Session, 0, len(sm.sessions))
-	for _, session := range sm.sessions {
-		sessions = append(sessions, session)
+	for _, managed := range sm.sessions {
+		sessions = append(sessions, managed.session)
 	}
 
 	return sessions
@@ -663,8 +389,8 @@ func (sm *SessionManager) ListAll() []*Session {
 
 	// Start with sessions in memory
 	sessionMap := make(map[string]*Session)
-	for id, session := range sm.sessions {
-		sessionMap[id] = session
+	for id, managed := range sm.sessions {
+		sessionMap[id] = managed.session
 	}
 
 	// Scan session directory for session files
@@ -716,15 +442,24 @@ func (sm *SessionManager) CleanupExpired() int {
 	now := time.Now()
 	cleaned := 0
 
-	for sessionID, session := range sm.sessions {
-		if now.Sub(session.LastUsedAt) > timeout {
-			// Kill the browser process if it exists
-			if session.Process != nil {
-				if cmd, ok := session.Process.(*exec.Cmd); ok {
+	for sessionID, managed := range sm.sessions {
+		if now.Sub(managed.session.LastUsedAt) > timeout {
+			if managed.worker != nil {
+				managed.worker.Close()
+			}
+
+			if managed.session.Process != nil {
+				if cmd, ok := managed.session.Process.(*exec.Cmd); ok {
 					if cmd.Process != nil {
-						cmd.Process.Kill()
+						_ = cmd.Process.Kill()
 					}
+				} else if proc, ok := managed.session.Process.(*os.Process); ok {
+					_ = proc.Kill()
 				}
+			}
+
+			if err := deleteSession(sessionID); err != nil {
+				fmt.Printf("Warning: failed to delete session file: %v\n", err)
 			}
 
 			delete(sm.sessions, sessionID)
@@ -743,60 +478,65 @@ func (sm *SessionManager) Count() int {
 	return len(sm.sessions)
 }
 
-// SendCommand sends a command to a browser session via TCP
+// SendCommand sends a command to a browser session via the session worker queue
 func (sm *SessionManager) SendCommand(ctx context.Context, sessionID string, command map[string]interface{}) (*ipc.NodeResponse, error) {
-	// Try to load session from memory or file
-	session, ok := sm.sessions[sessionID]
+	managed, err := sm.getOrCreateManagedSession(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := managed.worker.Send(ctx, command)
+	if err != nil {
+		if errors.Is(err, errSessionClosed) {
+			sm.mu.Lock()
+			if managed.worker != nil && managed.worker.isClosed() {
+				managed.worker = nil
+			}
+			sm.mu.Unlock()
+		}
+		return nil, err
+	}
+
+	sm.mu.Lock()
+	managed.session.LastUsedAt = time.Now()
+	sm.mu.Unlock()
+
+	return resp, nil
+}
+
+func (sm *SessionManager) getOrCreateManagedSession(ctx context.Context, sessionID string) (*managedSession, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	sm.mu.RLock()
+	managed, ok := sm.sessions[sessionID]
+	sm.mu.RUnlock()
+
+	if ok && managed.worker != nil && !managed.worker.isClosed() {
+		return managed, nil
+	}
+
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	managed, ok = sm.sessions[sessionID]
 	if !ok {
-		// Load from file
-		loadedSession, err := loadSession(sessionID)
+		session, err := loadSession(sessionID)
 		if err != nil {
 			return nil, err
 		}
-		session = loadedSession
+		managed = &managedSession{session: session}
+		sm.sessions[sessionID] = managed
 	}
 
-	// Connect to session's TCP server
-	conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", session.Port), 5*time.Second)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to session: %w", err)
-	}
-	defer conn.Close()
-
-	// Set write deadline
-	conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
-
-	// Encode and send command
-	commandJSON, err := json.Marshal(command)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal command: %w", err)
-	}
-
-	if _, err := conn.Write(append(commandJSON, '\n')); err != nil {
-		return nil, fmt.Errorf("failed to send command: %w", err)
-	}
-
-	// Set read deadline
-	conn.SetReadDeadline(time.Now().Add(30 * time.Second))
-
-	// Read response
-	scanner := bufio.NewScanner(conn)
-	if !scanner.Scan() {
-		if err := scanner.Err(); err != nil {
-			return nil, fmt.Errorf("failed to read response: %w", err)
+	if managed.worker == nil || managed.worker.isClosed() {
+		worker, err := newSessionWorker(ctx, managed.session)
+		if err != nil {
+			return nil, err
 		}
-		return nil, fmt.Errorf("no response received")
+		managed.worker = worker
 	}
 
-	// Parse response
-	var resp ipc.NodeResponse
-	if err := json.Unmarshal(scanner.Bytes(), &resp); err != nil {
-		return nil, fmt.Errorf("failed to parse response: %w", err)
-	}
-
-	// Update last used time (in-memory only for performance)
-	// File I/O will happen periodically in background or on session close
-	session.LastUsedAt = time.Now()
-
-	return &resp, nil
+	return managed, nil
 }
