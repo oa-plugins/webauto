@@ -5,6 +5,8 @@ on:
     branches: [ main ]
     paths:
       - 'pkg/bootstrap/**'
+      - 'pkg/playwright/**'
+      - 'pkg/cli/**'
       - 'cmd/webauto/**'
       - 'go.mod'
       - 'go.sum'
@@ -13,6 +15,8 @@ on:
     branches: [ main ]
     paths:
       - 'pkg/bootstrap/**'
+      - 'pkg/playwright/**'
+      - 'pkg/cli/**'
       - 'cmd/webauto/**'
       - 'go.mod'
       - 'go.sum'
