@@ -10,11 +10,13 @@ import (
 )
 
 var (
-	browserType     string
-	headless        bool
-	viewportWidth   int
-	viewportHeight  int
-	userAgent       string
+	browserType        string
+	headless           bool
+	noHeadless         bool
+	viewportWidth      int
+	viewportHeight     int
+	userAgent          string
+	launchSessionID    string
 )
 
 var browserLaunchCmd = &cobra.Command{
@@ -27,20 +29,27 @@ var browserLaunchCmd = &cobra.Command{
 func init() {
 	browserLaunchCmd.Flags().StringVar(&browserType, "browser-type", "chromium", "Browser type (chromium|firefox|webkit)")
 	browserLaunchCmd.Flags().BoolVar(&headless, "headless", true, "Headless mode")
+	browserLaunchCmd.Flags().BoolVar(&noHeadless, "no-headless", false, "Disable headless mode (visible browser)")
 	browserLaunchCmd.Flags().IntVar(&viewportWidth, "viewport-width", 1920, "Viewport width")
 	browserLaunchCmd.Flags().IntVar(&viewportHeight, "viewport-height", 1080, "Viewport height")
 	browserLaunchCmd.Flags().StringVar(&userAgent, "user-agent", "", "User-Agent override")
+	browserLaunchCmd.Flags().StringVar(&launchSessionID, "session-id", "", "Session ID (optional, auto-generated if not provided)")
 }
 
 func runBrowserLaunch(cmd *cobra.Command, args []string) {
 	startTime := time.Now()
 	ctx := context.Background()
 
+	// Handle --no-headless flag
+	if noHeadless {
+		headless = false
+	}
+
 	// Get global session manager (singleton pattern)
 	sessionMgr := playwright.GetGlobalSessionManager()
 
-	// Create browser session
-	session, err := sessionMgr.Create(ctx, browserType, headless)
+	// Create browser session with optional session ID
+	session, err := sessionMgr.Create(ctx, browserType, headless, launchSessionID)
 	if err != nil {
 		resp := response.Error(
 			response.ErrBrowserLaunchFailed,

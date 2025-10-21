@@ -15,7 +15,7 @@
   @echo "Launching browser..."
   oa plugin exec webauto browser-launch \
     --session-id "${SESSION_ID}" \
-    --headless "${HEADLESS}"
+    --no-headless
 
   @echo "✅ Browser launched"
   @echo "Session ID: ${SESSION_ID}"

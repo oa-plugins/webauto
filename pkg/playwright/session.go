@@ -123,7 +123,7 @@ func NewSessionManager(cfg *config.Config) *SessionManager {
 }
 
 // Create creates a new browser session
-func (sm *SessionManager) Create(ctx context.Context, browserType string, headless bool) (*Session, error) {
+func (sm *SessionManager) Create(ctx context.Context, browserType string, headless bool, customSessionID string) (*Session, error) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
@@ -132,8 +132,18 @@ func (sm *SessionManager) Create(ctx context.Context, browserType string, headle
 		return nil, fmt.Errorf("max sessions reached (%d)", sm.cfg.SessionMaxCount)
 	}
 
-	// Generate unique session ID
-	sessionID := "ses_" + uuid.New().String()[:8]
+	// Generate or use provided session ID
+	var sessionID string
+	if customSessionID != "" {
+		// Use custom session ID (validate it doesn't already exist)
+		if _, exists := sm.sessions[customSessionID]; exists {
+			return nil, fmt.Errorf("session ID already exists: %s", customSessionID)
+		}
+		sessionID = customSessionID
+	} else {
+		// Generate unique session ID
+		sessionID = "ses_" + uuid.New().String()[:8]
+	}
 
 	// Ensure session runner script is available and configure launch parameters
 	scriptPath, err := ensureSessionRunnerScript()
