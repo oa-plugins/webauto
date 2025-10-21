@@ -80,28 +80,34 @@ oa webauto workflow-heal \
 ### Direct Control (수동 제어)
 
 ```bash
-# 1. 브라우저 시작
-oa webauto browser-launch --headless false
+# 1. 브라우저 시작 (자동 세션 ID)
+oa plugin exec webauto browser-launch --no-headless
 # 출력: {"success":true,"data":{"session_id":"ses_abc123",...}}
 
+# 또는 커스텀 세션 ID 지정
+oa plugin exec webauto browser-launch \
+  --session-id "my_session" \
+  --no-headless
+# 출력: {"success":true,"data":{"session_id":"my_session",...}}
+
 # 2. 페이지 이동
-oa webauto page-navigate \
-  --page-url "https://hometax.go.kr" \
-  --session-id ses_abc123
+oa plugin exec webauto page-navigate \
+  --session-id "my_session" \
+  --page-url "https://hometax.go.kr"
 
 # 3. 폼 입력
-oa webauto form-fill \
+oa plugin exec webauto form-fill \
+  --session-id "my_session" \
   --form-data '{"username":"user1","password":"pass123"}' \
-  --session-id ses_abc123 \
   --submit true
 
 # 4. 스크린샷 촬영
-oa webauto page-screenshot \
-  --image-path hometax_result.png \
-  --session-id ses_abc123
+oa plugin exec webauto page-screenshot \
+  --session-id "my_session" \
+  --image-path hometax_result.png
 
 # 5. 브라우저 종료
-oa webauto browser-close --session-id ses_abc123
+oa plugin exec webauto browser-close --session-id "my_session"
 ```
 
 ## 🛡️ Anti-Bot 전략
@@ -184,9 +190,19 @@ if [ -z "$SESSION_ID" ]; then exit 1; fi
 ```bash
 # web_scraping.oas
 @set SESSION_ID = "web_session"
-oa plugin exec webauto browser-launch --session-id "${SESSION_ID}"
-oa plugin exec webauto page-navigate --session-id "${SESSION_ID}" --page-url "https://example.com"
-oa plugin exec webauto page-screenshot --session-id "${SESSION_ID}" --image-path "output.png"
+
+oa plugin exec webauto browser-launch \
+  --session-id "${SESSION_ID}" \
+  --no-headless
+
+oa plugin exec webauto page-navigate \
+  --session-id "${SESSION_ID}" \
+  --page-url "https://example.com"
+
+oa plugin exec webauto page-screenshot \
+  --session-id "${SESSION_ID}" \
+  --image-path "output.png"
+
 oa plugin exec webauto browser-close --session-id "${SESSION_ID}"
 ```
 
@@ -194,21 +210,40 @@ oa plugin exec webauto browser-close --session-id "${SESSION_ID}"
 
 ```bash
 # .oas 스크립트 실행
-oa batch run examples/oas-scripts/web_scraping.oas
+oa batch run examples/basic/manual_test.oas
 
 # Dry-run (실행하지 않고 확인만)
-oa batch run examples/oas-scripts/naver_blog_search.oas --dry-run
+oa batch run examples/basic/manual_test.oas --dry-run
+
+# Verbose 모드 (상세 로그)
+oa batch run examples/basic/manual_test.oas --verbose
 
 # 변수 오버라이드
-oa batch run examples/oas-scripts/naver_map_search.oas --set SEARCH_QUERY="홍대입구 카페"
+oa batch run examples/advanced/retry.oas --set TARGET_URL="https://example.com"
 ```
 
-### 제공 예제
+### 제공 예제 (18개)
 
-- **web_scraping.oas**: 기본 웹 스크래핑 및 스크린샷 캡처
-- **naver_blog_search.oas**: 네이버 블로그 검색 및 데이터 추출
-- **naver_map_search.oas**: 네이버 지도 장소 검색
-- **advanced_form_automation.oas**: 재시도 로직을 포함한 폼 자동화
+**기본 (examples/basic/):**
+- **manual_test.oas**: 브라우저 수동 테스트 헬퍼
+- **screenshot.oas**: 스크린샷 캡처
+- **element_interaction.oas**: 요소 클릭 및 입력
+- **form_fill.oas**: 폼 자동 입력
+- **session_list.oas**: 세션 목록 조회
+
+**고급 (examples/advanced/):**
+- **retry.oas**: 재시도 로직 구현
+- **wait_conditions.oas**: 다양한 대기 조건
+- **multi_element.oas**: 여러 요소 조작
+- **conditional.oas**: 조건부 실행
+- **batch_operations.oas**: 일괄 작업
+
+**실사용 (examples/real-world/):**
+- **naver_blog_search.oas**: 네이버 블로그 검색
+- **naver_map_search.oas**: 네이버 지도 검색
+- **hometax_screenshot.oas**: 홈택스 스크린샷
+
+**상세 예제는 [examples/README.md](examples/README.md) 참조**
 
 ### 상세 문서
 

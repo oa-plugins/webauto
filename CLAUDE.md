@@ -27,6 +27,12 @@ This guide tells Claude Code (claude.ai/code) how to work inside the **webauto**
 - ✅ `--page-url`, `--session-id`, `--element-selector`
 - ❌ `--input`, `--path`, `--value` (too generic)
 
+### Boolean Flag Naming
+- Pattern: `--no-<feature>` for disabling default behavior
+- ✅ `--no-headless` (disables default headless mode)
+- ✅ `--headless` (enables headless mode explicitly)
+- ❌ `--headless=false` (Cobra boolean flags work better with --no- prefix)
+
 ### JSON Output Schema
 All commands **must** return:
 ```json
@@ -182,33 +188,83 @@ Standard error response template:
 
 ## Usage Walkthrough
 
+### Direct Plugin Execution
+
 ```bash
-# 1. Launch browser (Chromium headless by default)
-oa webauto browser-launch --headless false
-# => {"success":true,"data":{"session_id":"ses_abcd1234",...}}
+# 1. Launch browser with custom session ID (visible mode)
+oa plugin exec webauto browser-launch \
+  --session-id "my_session" \
+  --no-headless
+# => {"success":true,"data":{"session_id":"my_session",...}}
+
+# Or let webauto auto-generate session ID (headless by default)
+oa plugin exec webauto browser-launch
+# => {"success":true,"data":{"session_id":"ses_abc123",...}}
 
 # 2. Navigate to target page
-oa webauto page-navigate \
-  --session-id ses_abcd1234 \
+oa plugin exec webauto page-navigate \
+  --session-id "my_session" \
   --page-url "https://hometax.go.kr"
 
 # 3. Wait and interact with elements
-oa webauto element-wait \
-  --session-id ses_abcd1234 \
+oa plugin exec webauto element-wait \
+  --session-id "my_session" \
   --element-selector "#loginBtn" \
   --wait-for visible
 
-oa webauto element-click \
-  --session-id ses_abcd1234 \
+oa plugin exec webauto element-click \
+  --session-id "my_session" \
   --element-selector "#loginBtn"
 
 # 4. Capture evidence
-oa webauto page-screenshot \
-  --session-id ses_abcd1234 \
+oa plugin exec webauto page-screenshot \
+  --session-id "my_session" \
   --image-path evidence.png
 
 # 5. Close session
-oa webauto browser-close --session-id ses_abcd1234
+oa plugin exec webauto browser-close --session-id "my_session"
+```
+
+### .oas Batch Script Execution (Recommended)
+
+```bash
+# Run .oas script with all features
+oa batch run examples/basic/manual_test.oas
+
+# Dry-run mode (validation only)
+oa batch run examples/basic/manual_test.oas --dry-run
+
+# Verbose output for debugging
+oa batch run examples/basic/manual_test.oas --verbose
+
+# Variable override
+oa batch run examples/advanced/retry.oas --set TARGET_URL="https://example.com"
+```
+
+### Recent Enhancements (Issue #36)
+
+**Added Flags:**
+- `--session-id`: Custom session IDs for predictable automation
+  - Auto-generates if not provided (backward compatible)
+  - Enables session reuse in .oas scripts
+- `--no-headless`: Visible browser mode for debugging
+  - Defaults to headless mode if not specified
+  - Better than `--headless=false` for Cobra boolean flags
+
+**Dependencies:**
+- Requires OA CLI >= 1.0.0 (commits 7538fc9, c22f244) for:
+  - Boolean flag support via `oa plugin exec` (Issue #31)
+  - Backslash line continuation in .oas scripts (Issue #32)
+
+**Verification:**
+```bash
+# Test custom session ID
+oa plugin exec webauto browser-launch --session-id "test" --no-headless
+
+# Test .oas batch execution
+oa batch run examples/basic/manual_test.oas
+
+# All 18 .oas examples compatible
 ```
 
 ## Platform Support

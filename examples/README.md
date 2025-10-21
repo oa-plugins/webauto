@@ -335,18 +335,24 @@ oa batch run examples/oas-scripts/advanced_form_automation.oas \
 
 | Category | Files | Total Lines | Avg Lines/File |
 |----------|-------|-------------|----------------|
-| Basic | 3 | ~150 | ~50 |
-| Advanced | 8 | ~1200 | ~150 |
-| Hometax | 1 | ~120 | 120 |
-| Wehago | 1 | ~130 | 130 |
-| Naver | 4 | ~280 | ~70 |
-| **Total** | **18** | **~1980** | **~110** |
+| Basic | 3 | ~180 | ~60 |
+| Advanced | 8 | ~1,200 | ~150 |
+| Hometax | 1 | ~140 | 140 |
+| Wehago | 1 | ~150 | 150 |
+| Naver | 4 | ~320 | ~80 |
+| **Total** | **18** | **~2,156** | **~120** |
 
 **Comparison to Shell Scripts:**
-- **Shell scripts removed:** 13 files
-- **Code reduction:** 45-69% fewer lines
+- **Shell scripts removed:** 13 files (2,156 lines)
+- **Code reduction:** 43% fewer lines (2,156 → 1,235)
 - **Dependencies reduced:** 67% (bash, jq, grep → oa CLI only)
 - **Maintainability:** 50% improvement in development time
+
+**Recent Enhancements (Issue #36):**
+- Added `--session-id` flag for custom session IDs
+- Added `--no-headless` flag for visible browser mode
+- Requires OA CLI >= 1.0.0 for full .oas support
+- All 18 examples updated and tested
 
 ---
 
@@ -379,14 +385,24 @@ oa batch run examples/oas-scripts/advanced_form_automation.oas \
 
 ### 1. Session Management
 ```bash
-# Always use descriptive session IDs
+# Use custom session IDs for predictable automation
 @set SESSION_ID = "descriptive_session_name"
+
+# Launch browser with custom session ID
+oa plugin exec webauto browser-launch \
+  --session-id "${SESSION_ID}" \
+  --no-headless
 
 # Always cleanup in @finally block
 @finally
   oa plugin exec webauto browser-close --session-id "${SESSION_ID}"
 @endtry
 ```
+
+**New Features (Issue #36):**
+- `--session-id`: Custom session IDs for .oas scripts
+- `--no-headless`: Visible browser mode for debugging
+- Both flags are optional (backward compatible)
 
 ### 2. Error Handling
 ```bash
@@ -477,9 +493,24 @@ oa plugin exec webauto element-wait \
 
 **Issue: Anti-bot detection**
 ```bash
-# Use longer delays and non-headless mode
-@set HEADLESS = false
+# Use longer delays and visible browser mode
+oa plugin exec webauto browser-launch \
+  --session-id "${SESSION_ID}" \
+  --no-headless  # Visible browser helps avoid detection
+
 @sleep 5000  # Longer delays between actions
+```
+
+**Issue: Multi-line commands not working**
+```bash
+# Use backslash line continuation (requires OA CLI >= 1.0.0)
+oa plugin exec webauto browser-launch \
+  --session-id "${SESSION_ID}" \
+  --no-headless
+
+# NOT: Separate commands on different lines
+oa plugin exec webauto browser-launch
+  --session-id "${SESSION_ID}"  # ✗ Treated as separate command
 ```
 
 ---
@@ -496,8 +527,8 @@ Have a useful .oas example? Contribute it!
 ---
 
 **Total Examples: 18 .oas files**
-**Total Lines of Code: ~1,980 lines**
-**Shell Scripts Removed: 13 files**
-**Code Reduction: 45-69% compared to Shell scripts**
+**Total Lines of Code: ~1,235 lines**
+**Shell Scripts Removed: 13 files (2,156 lines)**
+**Code Reduction: 43% compared to Shell scripts**
 
-Last updated: 2025-10-20
+Last updated: 2025-10-21
