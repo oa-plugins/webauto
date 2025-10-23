@@ -1,0 +1,103 @@
+# login_retry_with_backoff.oas - Login flow with arithmetic-driven retry logic
+# Demonstrates native arithmetic in @set and @while directives for resilient automations
+
+@set LOGIN_URL = "https://example.com/login"
+@set USERNAME = "${WEB_AUTO_USER}"
+@set PASSWORD = "${WEB_AUTO_PASS}"
+@set MAX_RETRIES = 4
+@set RETRY_DELAY_MS = 1500
+@set BACKOFF_FACTOR = 2
+@set SESSION_ID = "login_retry_session"
+@set OUTPUT_DIR = "./output/login_retry"
+
+@echo "=== Login Retry With Backoff ==="
+@echo "Target: ${LOGIN_URL}"
+@echo "Max retries: ${MAX_RETRIES}"
+@echo ""
+
+@if not exists("${OUTPUT_DIR}")
+  @mkdir "${OUTPUT_DIR}"
+@endif
+
+@set ATTEMPT = 0
+@set SUCCESS = false
+
+@while ${ATTEMPT} < ${MAX_RETRIES} and not ${SUCCESS}
+  @set ATTEMPT = ${ATTEMPT} + 1
+  @echo "Attempt ${ATTEMPT}/${MAX_RETRIES}"
+
+  @try
+    # Launch browser fresh for each attempt
+    oa plugin exec webauto browser-launch \
+      --session-id "${SESSION_ID}" \
+      --headless true
+
+    # Navigate to login page
+    oa plugin exec webauto page-navigate \
+      --session-id "${SESSION_ID}" \
+      --page-url "${LOGIN_URL}"
+
+    # Fill login form
+    oa plugin exec webauto form-fill \
+      --session-id "${SESSION_ID}" \
+      --field-selector "input[name='username']=${USERNAME}" \
+      --field-selector "input[name='password']=${PASSWORD}" \
+      --submit-selector "button[type='submit']"
+
+    # Wait for successful navigation (dashboard element appears)
+    oa plugin exec webauto element-wait \
+      --session-id "${SESSION_ID}" \
+      --element-selector "#dashboard" \
+      --wait-for visible \
+      --timeout 5000
+
+    @set SUCCESS = true
+    @echo "✅ Login succeeded on attempt ${ATTEMPT}"
+
+  @catch
+    @echo "❌ Attempt ${ATTEMPT} failed"
+
+    # Capture the error page for troubleshooting
+    @try
+      oa plugin exec webauto page-screenshot \
+        --session-id "${SESSION_ID}" \
+        --image-path "${OUTPUT_DIR}/attempt_${ATTEMPT}.png"
+    @catch
+      @echo "  ⚠️  Unable to capture error screenshot"
+    @endtry
+
+    # Always close the session before retrying
+    @try
+      oa plugin exec webauto browser-close --session-id "${SESSION_ID}"
+    @catch
+      @echo "  ⚠️  Browser already closed"
+    @endtry
+
+    @if ${ATTEMPT} < ${MAX_RETRIES}
+      @echo "Sleeping ${RETRY_DELAY_MS}ms before next attempt..."
+      @sleep ${RETRY_DELAY_MS}
+      @set RETRY_DELAY_MS = ${RETRY_DELAY_MS} * ${BACKOFF_FACTOR}
+    @else
+      @echo "Max retries reached."
+    @endif
+  @endtry
+@endwhile
+
+@if ${SUCCESS}
+  @echo ""
+  @echo "=== Login flow completed successfully ==="
+  oa plugin exec webauto page-screenshot \
+    --session-id "${SESSION_ID}" \
+    --image-path "${OUTPUT_DIR}/final_dashboard.png"
+@else
+  @echo ""
+  @echo "=== Login flow failed after ${MAX_RETRIES} attempts ==="
+  @exit 1
+@endif
+
+# Final cleanup to ensure session is closed
+@try
+  oa plugin exec webauto browser-close --session-id "${SESSION_ID}"
+@catch
+  @echo "Session already closed."
+@endtry

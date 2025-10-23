@@ -82,7 +82,7 @@ oa batch run examples/basic/test_element_operations.oas
 
 ---
 
-### Advanced Examples (8 files)
+### Advanced Examples (9 files)
 
 #### `data_extraction_pipeline.oas`
 Multi-stage data extraction with validation.
@@ -201,6 +201,23 @@ oa batch run examples/advanced/accessibility_audit.oas \
   --set TARGET_URL="https://example.com"
 ```
 
+#### `login_retry_with_backoff.oas`
+Resilient login automation with arithmetic-based retry/backoff control.
+
+**Features:**
+- Native integer arithmetic for retry counters and delays
+- Exponential backoff with configurable factor
+- Failure screenshots per attempt and final success capture
+- Guaranteed browser cleanup between retries
+
+**Usage:**
+```bash
+oa batch run examples/advanced/login_retry_with_backoff.oas \
+  --set LOGIN_URL="https://service.example.com/login" \
+  --set WEB_AUTO_USER="${YOUR_ID}" \
+  --set WEB_AUTO_PASS="${YOUR_PASSWORD}"
+```
+
 ---
 
 ### Hometax Examples (1 file)
@@ -210,6 +227,7 @@ Automates Hometax tax invoice queries.
 
 **Features:**
 - Guided login process (manual step)
+- Arithmetic-based login polling and search retries
 - Date range query
 - Screenshot and PDF capture
 - Excel download attempt
@@ -234,6 +252,7 @@ Automates Wehago accounting data export.
 **Features:**
 - Guided login process (manual step)
 - Company selection
+- Arithmetic-driven retries and multi-page capture
 - Date range query
 - Excel and PDF export
 
@@ -318,6 +337,7 @@ Form automation with retry logic.
 
 **Features:**
 - Retry with configurable max attempts
+- Native arithmetic for exponential backoff
 - Success flag tracking
 - Error screenshots per attempt
 - Form filling
@@ -336,11 +356,11 @@ oa batch run examples/oas-scripts/advanced_form_automation.oas \
 | Category | Files | Total Lines | Avg Lines/File |
 |----------|-------|-------------|----------------|
 | Basic | 3 | ~180 | ~60 |
-| Advanced | 8 | ~1,200 | ~150 |
+| Advanced | 9 | ~1,350 | ~150 |
 | Hometax | 1 | ~140 | 140 |
 | Wehago | 1 | ~150 | 150 |
 | Naver | 4 | ~320 | ~80 |
-| **Total** | **18** | **~2,156** | **~120** |
+| **Total** | **19** | **~2,346** | **~123** |
 
 **Comparison to Shell Scripts:**
 - **Shell scripts removed:** 13 files (2,156 lines)

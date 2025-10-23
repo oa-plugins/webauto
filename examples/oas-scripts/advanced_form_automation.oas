@@ -4,6 +4,8 @@
 @set FORM_URL = "https://example.com/contact"
 @set OUTPUT_DIR = "./output/forms"
 @set MAX_RETRIES = 3
+@set RETRY_DELAY_MS = 3000
+@set BACKOFF_FACTOR = 2
 
 @echo "=== Advanced Form Automation ==="
 
@@ -30,6 +32,7 @@ oa plugin exec webauto browser-launch \
 # Retry loop
 @set ATTEMPT = 0
 @set SUCCESS = false
+@set ERROR_COUNT = 0
 
 @while ${ATTEMPT} < ${MAX_RETRIES} and not ${SUCCESS}
   @set ATTEMPT = ${ATTEMPT} + 1
@@ -73,6 +76,7 @@ oa plugin exec webauto browser-launch \
 
   @catch
     @echo "❌ Attempt ${ATTEMPT} failed"
+    @set ERROR_COUNT = ${ERROR_COUNT} + 1
 
     # Take error screenshot
     oa plugin exec webauto page-screenshot \
@@ -80,8 +84,9 @@ oa plugin exec webauto browser-launch \
       --image-path "${OUTPUT_DIR}/error_attempt_${ATTEMPT}.png"
 
     @if ${ATTEMPT} < ${MAX_RETRIES}
-      @echo "   Retrying in 5 seconds..."
-      @sleep 5000
+      @echo "   Retrying in ${RETRY_DELAY_MS}ms..."
+      @sleep ${RETRY_DELAY_MS}
+      @set RETRY_DELAY_MS = ${RETRY_DELAY_MS} * ${BACKOFF_FACTOR}
     @else
       @echo "   Max retries reached. Giving up."
     @endif
@@ -94,10 +99,12 @@ oa plugin exec webauto browser-launch \
   @echo ""
   @echo "=== Form Automation Successful ==="
   @echo "Screenshot: ${OUTPUT_DIR}/form_submitted.png"
+  @echo "Errors encountered: ${ERROR_COUNT}"
 @else
   @echo ""
   @echo "=== Form Automation Failed ==="
   @echo "Error screenshots: ${OUTPUT_DIR}/error_attempt_*.png"
+  @echo "Total failed attempts: ${ERROR_COUNT}"
 @endif
 
 # Cleanup
